@@ -40,8 +40,9 @@ On Windows PowerShell:
 Set-Content "$HOME\.jev-router.env" "JEV_API_KEY=..."
 ```
 
-Get a key from [TypeSafe](https://docs.typesafe.ai). Then launch either interface from any
-repository:
+Get a key from [TypeSafe](https://docs.typesafe.ai). To pay with OpenRouter credits instead, set
+`OPENROUTER_API_KEY=...` in the same file; Jev answers the same either way. Then launch either
+interface from any repository:
 
 ```bash
 jev-claude
@@ -155,7 +156,7 @@ available from any repository without separate setup.
 
 Codex's footer shows `jev-router` because it displays the selected picker entry,
 not the model chosen behind that provider. If Jev is unavailable, the commentary names the
-fallback model and explains how to set `JEV_API_KEY`.
+fallback model and explains how to set `JEV_API_KEY` or `OPENROUTER_API_KEY`.
 
 ## How it works
 
@@ -204,8 +205,12 @@ sub-agents are pinned separately. Routing is fail-open: Jev failure never blocks
 
 | Variable | Interface | Effect |
 | --- | --- | --- |
-| `JEV_API_KEY` | Both | Enables routing. `TYPESAFE_API_KEY` also works. |
-| `TYPESAFE_BASE_URL` | Both | Sends routing decisions to another System-One server instead of `https://api.typesafe.ai`, for example a self-hosted [Laya](https://github.com/NandhaKishorM/laya) serving `POST /v1/systemone`. `JEV_API_KEY` is still required and is sent to that server as the bearer token. |
+| `JEV_API_KEY` | Both | Enables routing through TypeSafe. `TYPESAFE_API_KEY` also works. |
+| `TYPESAFE_BASE_URL` | Both | Sends routing decisions to another System-One server instead of `https://api.typesafe.ai`, for example a self-hosted [Laya](https://github.com/NandhaKishorM/laya) serving `POST /v1/systemone`. `JEV_API_KEY` is still required and is sent to that server as the bearer token. OpenRouter uses `JEV_OPENROUTER_URL` instead. |
+| `OPENROUTER_API_KEY` | Both | Enables routing through OpenRouter when no TypeSafe key is set. |
+| `JEV_PROVIDER` | Both | Forces `typesafe` or `openrouter` when both keys are present. |
+| `JEV_OPENROUTER_MODEL` | Both | OpenRouter model id; defaults to `typesafe/jev-1.13`. |
+| `JEV_OPENROUTER_URL` | Both | OpenRouter decisions endpoint; defaults to `https://openrouter.ai/api/alpha/decisions`. |
 | `JEV_ALLOW_FABLE` | Both | Enables the opt-in long tier. |
 | `JEV_DEBUG` | Both | Logs decisions and rewrites to `~/.jev-claude.log` in interactive sessions. |
 | `JEV_DUMP` | Both | Dumps request bodies for debugging wire-format changes. |
@@ -253,11 +258,15 @@ injection, and decision display.
 
 ## Limitations
 
-- The user's prompt text is sent to TypeSafe (or to `TYPESAFE_BASE_URL`, when set) for the routing
-  decision. Nothing else is.
+- The user's prompt text is sent to TypeSafe (or to `TYPESAFE_BASE_URL`, when set), or to OpenRouter
+  when that provider is selected, for the routing decision. Nothing else is.
 - A self-hosted Laya reports `confidence` as normalized entropy, `1 - H(p)/log k`, not as the chosen
   option's probability, so `THRESHOLDS.minConfidence` is read on that scale. Check it against
   your own server before relying on it.
+- If both `JEV_API_KEY` and `OPENROUTER_API_KEY` are set, TypeSafe is used; OpenRouter is only
+  enabled by `JEV_PROVIDER=openrouter`. An invalid `JEV_PROVIDER` value, or a missing key for the
+  chosen provider, starts Claude Code without routing (with a warning). Variables exported in the
+  shell take precedence over `~/.jev-router.env`.
 - Jev adds latency only to the first request of a turn; tool-loop continuations add none.
 - Claude Code and Codex request formats are not public contracts. Use `JEV_DUMP` to diagnose
   upstream changes.
