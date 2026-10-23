@@ -4,6 +4,7 @@ import http from "node:http";
 import {
   sanitizeSchema,
   newTurnPrompt,
+  isClaudeAuxiliaryPrompt,
   applyTier,
   claudeModels,
   conversationKey,
@@ -554,4 +555,192 @@ test("the catalogue is fetched once when Claude Code never asks for it", async (
   // Assert
   assert.deepEqual(seen, [["claude-opus-9"], ["claude-opus-9"]], "catalogue ids route both turns");
   assert.equal(calls.filter((url) => url?.startsWith("/v1/models")).length, 1, "fetched once");
+});
+
+test("isClaudeAuxiliaryPrompt matches Claude Code's side requests only at the start", () => {
+  assert.equal(isClaudeAuxiliaryPrompt("[SUGGESTION MODE: Suggest what the user might naturally type next.]"), true);
+  assert.equal(isClaudeAuxiliaryPrompt("  \n[SUGGESTION MODE: x]"), true);
+  assert.equal(isClaudeAuxiliaryPrompt("The user stepped away and is coming back. Recap in under 40 words, "), true);
+  assert.equal(isClaudeAuxiliaryPrompt("fix the bug [SUGGESTION MODE: x]"), false);
+  assert.equal(isClaudeAuxiliaryPrompt("please note: The user stepped away and is coming back. Recap"), false);
+  assert.equal(isClaudeAuxiliaryPrompt("fix the bug"), false);
+  assert.equal(isClaudeAuxiliaryPrompt(""), false);
+  assert.equal(isClaudeAuxiliaryPrompt(null), false);
+  assert.equal(isClaudeAuxiliaryPrompt(undefined), false);
+});
+
+for (const aux of [
+  "[SUGGESTION MODE: Suggest what the user might naturally type next into Claude Code.] ...",
+  "The user stepped away and is coming back. Recap in under 40 words, ...",
+]) {
+  test(`an auxiliary request (${aux.slice(0, 20)}) keeps the model and status of the conversation`, async (t) => {
+    const seen = [];
+    const upstream = http.createServer((req, res) => {
+      const chunks = [];
+      req.on("data", (chunk) => chunks.push(chunk));
+      req.on("end", () => {
+        if (req.url.startsWith("/v1/models")) {
+          res.setHeader("content-type", "application/json");
+          return res.end(JSON.stringify({
+            data: [
+              { id: "claude-opus-5-5", display_name: "Claude Opus 5" },
+              { id: "claude-sonnet-5-5", display_name: "Claude Sonnet 5" },
+            ],
+          }));
+        }
+        seen.push(JSON.parse(Buffer.concat(chunks)));
+        res.setHeader("content-type", "application/json");
+        res.end('{"id":"msg_1","type":"message","model":"claude-sonnet-5-5"}');
+      });
+    });
+    await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    t.after(() => upstream.close());
+
+    let routed = 0;
+    const { port, close } = await startProxy({
+      upstreamURL: `http://127.0.0.1:${upstream.address().port}`,
+      route: async () => {
+        routed++;
+        return { choice: routed === 1 ? "claude-sonnet-5-5" : "claude-opus-5-5", confidence: 0.9, ms: 1 };
+      },
+    });
+    t.after(close);
+
+    const first = `rename this variable ${aux.length} ${process.pid}`;
+    const send = (messages) =>
+      fetch(`http://127.0.0.1:${port}/v1/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ model: "jev-router", tools: [{ name: "Bash" }], messages }),
+      });
+    await send([{ role: "user", content: first }]);
+    const key = conversationKey({ messages: [{ role: "user", content: first }] });
+    const before = readStatus(key);
+    assert.equal(routed, 1);
+    assert.ok(before);
+
+    await send([
+      { role: "user", content: first },
+      { role: "assistant", content: "done" },
+      { role: "user", content: [{ type: "text", text: aux }] },
+    ]);
+
+    assert.equal(routed, 1, "an auxiliary request is not routed");
+    assert.deepEqual(readStatus(key), before, "the status file is untouched");
+    assert.equal(seen.length, 2);
+    assert.equal(seen[1].model, seen[0].model, "upstream gets the model of the previous turn");
+  });
+}
+
+// Harness for auxiliary-request edge cases: counts route calls and records what reaches upstream.
+async function auxHarness(t) {
+  const seen = [];
+  const upstream = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      res.setHeader("content-type", "application/json");
+      if (req.url.startsWith("/v1/models")) {
+        return res.end(JSON.stringify({
+          data: [
+            { id: "claude-opus-5-5", display_name: "Claude Opus 5" },
+            { id: "claude-sonnet-5-5", display_name: "Claude Sonnet 5" },
+          ],
+        }));
+      }
+      seen.push(JSON.parse(Buffer.concat(chunks)));
+      res.end('{"id":"msg_1","type":"message"}');
+    });
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  t.after(() => upstream.close());
+  const prompts = [];
+  const { port, close } = await startProxy({
+    upstreamURL: `http://127.0.0.1:${upstream.address().port}`,
+    route: async ({ prompt }) => {
+      prompts.push(prompt);
+      return { choice: "claude-sonnet-5-5", confidence: 0.9, ms: 1 };
+    },
+  });
+  t.after(close);
+  const send = (messages) =>
+    fetch(`http://127.0.0.1:${port}/v1/messages`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "jev-router", tools: [{ name: "Bash" }], messages }),
+    });
+  return { seen, prompts, send };
+}
+
+test("an auxiliary request as the first request still gets a real model and writes no status", async (t) => {
+  const { seen, prompts, send } = await auxHarness(t);
+  const text = `[SUGGESTION MODE: first-request ${process.pid}]`;
+  const messages = [{ role: "user", content: text }];
+  await send(messages);
+  assert.equal(prompts.length, 0, "route is not called");
+  assert.equal(seen.length, 1);
+  assert.notEqual(seen[0].model, "jev-router", "the sentinel is rewritten");
+  assert.ok(String(seen[0].model).startsWith("claude-"), "a real model goes upstream");
+  assert.equal(readStatus(conversationKey({ messages })), null, "no status is written");
+});
+
+test("auxiliary text in a text block behind a system-reminder block is still recognised", async (t) => {
+  const { seen, prompts, send } = await auxHarness(t);
+  const text = `The user stepped away and is coming back. blocks ${process.pid}`;
+  const messages = [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "<system-reminder>\nSome injected context\n</system-reminder>" },
+        { type: "text", text },
+      ],
+    },
+  ];
+  await send(messages);
+  assert.equal(prompts.length, 0, "route is not called");
+  assert.notEqual(seen[0].model, "jev-router");
+  assert.equal(readStatus(conversationKey({ messages })), null);
+});
+
+test("a normal turn after an auxiliary one still routes and records the real prompt", async (t) => {
+  const { seen, prompts, send } = await auxHarness(t);
+  const first = `add a unit test ${process.pid}`;
+  const aux = "[SUGGESTION MODE: after-first]";
+  const next = "now update the readme";
+  const key = conversationKey({ messages: [{ role: "user", content: first }] });
+  await send([{ role: "user", content: first }]);
+  await send([
+    { role: "user", content: first },
+    { role: "assistant", content: "done" },
+    { role: "user", content: aux },
+  ]);
+  assert.equal(prompts.length, 1);
+  await send([
+    { role: "user", content: first },
+    { role: "assistant", content: "done" },
+    { role: "user", content: next },
+  ]);
+  assert.deepEqual(prompts, [first, next], "the later real turn is routed");
+  assert.equal(readStatus(key).prompt, next);
+  assert.equal(seen.length, 3);
+});
+
+test("the status prompt stays the real user's prompt after an auxiliary request", async (t) => {
+  const { prompts, send } = await auxHarness(t);
+  const first = `explain the build ${process.pid}`;
+  const key = conversationKey({ messages: [{ role: "user", content: first }] });
+  await send([{ role: "user", content: first }]);
+  await send([
+    { role: "user", content: first },
+    { role: "assistant", content: "ok" },
+    { role: "user", content: "[SUGGESTION MODE: later]" },
+  ]);
+  await send([
+    { role: "user", content: first },
+    { role: "assistant", content: "ok" },
+    { role: "user", content: "<jev-explain>" },
+  ]);
+  assert.equal(prompts.length, 1);
+  assert.equal(readStatus(key).prompt, first, "/jev-explain reads the real prompt");
+  assert.equal(readStatus(key).history.length, 1, "no auxiliary entry in the history");
 });

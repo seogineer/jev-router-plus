@@ -45,6 +45,14 @@ export function sanitizeSchema(node) {
 }
 
 /**
+ * Claude Code's own side requests (prompt suggestions, away recaps) keep the full tools list
+ * and the same conversation, so they look like a new user turn. They are not the user's work.
+ */
+export const isClaudeAuxiliaryPrompt = (prompt) =>
+  typeof prompt === "string" &&
+  /^(?:\[SUGGESTION MODE:|The user stepped away and is coming back\.)/.test(prompt.trim());
+
+/**
  * The text of a genuinely new user turn, or null.
  *
  * A turn can continue for many requests while Claude works through tool calls, and those
@@ -284,7 +292,9 @@ export async function startProxy({ upstreamURL = ANTHROPIC_BASE_URL, route = ask
             // What the prompt cache was built on, which is what a downgrade would discard.
             const current = state.tier ?? "opus";
             const prompt = newTurnPrompt(body);
-            const explaining = prompt?.includes("<jev-explain>");
+            // Auxiliary requests are rewritten to the current model like a follow-up, but must not
+            // route, change the conversation's tier, or overwrite the status /jev-explain shows.
+            const explaining = prompt?.includes("<jev-explain>") || isClaudeAuxiliaryPrompt(prompt);
             let fresh = null;
             if (prompt && !explaining) {
               await ensureCatalog(req.headers);

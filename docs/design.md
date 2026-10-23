@@ -222,3 +222,40 @@ verifier·tester 보고: `src/explain.mjs`의 박스(`row`, `wrapped`)가 패딩
 2. 한글·이모지·혼합 프롬프트/모델 ID로 만든 박스에서 모든 줄의 표시 폭이 같음(테스트로 고정).
 3. `git diff --stat HEAD`와 `--ignore-space-at-eol` 결과가 거의 같음(줄바꿈 회귀 없음).
 4. 버전 0.4.3이 package.json·lockfile에서 일치, `npm pack --dry-run`에 `src/width.mjs` 포함.
+
+---
+
+# 개정: Claude Code 보조 요청을 라우팅에서 제외 (0.4.4)
+
+실사용 관찰(`/jev-explain`, 상태 파일 history): Claude Code는 도구 목록을 그대로 가진 채 같은 대화(첫 메시지가 같아 `conversationKey`도 같음)로 보조 요청을 보낸다. 두 종류가 확인됐다.
+
+- 다음 입력 추천: 마지막 user 메시지가 `[SUGGESTION MODE: Suggest what the user might naturally type next into Claude Code.]`로 시작.
+- 자리 비움 요약: `The user stepped away and is coming back. Recap in under 40 words` 로 시작.
+
+현재 `newTurnPrompt`가 이를 새 사용자 턴으로 보고 (1) Jev를 호출하고(비용·지연), (2) 그 결과로 메인 대화의 `state.tier`/`state.model`을 바꿀 수 있으며(모델 전환 → 프롬프트 캐시 재구축), (3) `writeDecision`으로 상태 파일을 덮어써 `/jev-explain`과 상태 줄이 사용자 프롬프트 대신 보조 요청을 보여 준다.
+
+## 구현
+
+- `src/proxy.mjs`에 `isClaudeAuxiliaryPrompt(prompt)`를 export한다(Codex의 `isCodexAuxiliaryPrompt`와 같은 방식). 위 두 접두어를 앞부분 정규식으로 판정(공백 정리 후 시작 부분 일치, 대소문자 구분 안 함은 불필요: 고정 문구).
+- 라우팅 분기에서 `explaining`과 똑같이 취급한다: Jev 호출 없음, `writeDecision` 없음, `state` 변경 없음. 요청은 기존 후속 요청처럼 `state.tier`/`state.model`(없으면 기존 기본값)로 재작성되어야 한다(sentinel 모델은 실제 모델이 아니므로 재작성은 필수).
+- 영어 주석으로 이유를 짧게 남긴다. 다른 로직(수동 선택 감지, Codex 경로)은 건드리지 않는다.
+
+## 테스트 (`test/proxy.test.mjs`)
+
+- `isClaudeAuxiliaryPrompt`: 두 접두어 true, 일반 프롬프트·접두어가 중간에 있는 프롬프트·null/빈 문자열 false.
+- 통합(기존 테스트의 스텁 upstream·route 방식을 따름): 일반 턴으로 tier가 정해진 뒤 같은 대화로 보조 요청을 보내면 route가 호출되지 않고, 상태 파일이 바뀌지 않으며, upstream에 간 모델이 직전 턴에서 고른 모델과 같다.
+
+## 부수
+
+- 버전 `0.4.4`(package.json, package-lock.json 최상위·packages[""]). 문서(README·architecture 영/한)에 보조 호출 처리 설명이 있으면 사실에 맞게 한 줄 보강, 없으면 수정하지 않는다.
+- 기존 파일 줄바꿈 형식 유지, 코드·테스트에 한글 금지.
+
+## 범위 밖 (관찰만)
+
+- 같은 세션의 `Jev unavailable; held`는 코드 결함이 아니라 세션 시작 시 로드된 OpenRouter 키가 401 `User not found`를 받은 것(`~/.jev-claude.log`). 현재 env 파일은 TypeSafe 키 사용 중이며 이후 턴은 `jev/no-change`로 정상.
+
+## 완료 기준
+
+1. `npm test` 전체 통과(188 + 신규).
+2. 보조 요청이 route 미호출·상태 미변경·직전 모델 재사용임이 테스트로 고정.
+3. 줄바꿈 회귀 없음, 버전 0.4.4 일치.
