@@ -5,11 +5,13 @@ import { choice, score } from "@typesafe-ai/sdk";
  * Model tiers, cheapest first. `id` is what goes into the API request body; `family` is the
  * substring used to recognise whatever model Claude Code asked for, which may be an older
  * version within the same tier such as `claude-sonnet-4-6`. The capability flags come from
- * the Agent SDK's model catalogue: Haiku supports neither adaptive thinking nor effort, so
- * those fields have to be stripped when routing down to it.
+ * the Agent SDK's model catalogue and describe the tier's `id` (and its snapshots). A tier
+ * with `legacy` uses those values instead when routed to a different version id, e.g. the
+ * old `claude-haiku-4-5-20251001`. Haiku 4.5 accepts neither adaptive thinking nor effort.
  */
 export const TIERS = [
-  { name: "haiku", id: "claude-haiku-5-5", family: "haiku", thinking: true, effort: true },
+  { name: "haiku", id: "claude-haiku-5-5", family: "haiku", thinking: true, effort: true,
+    legacy: { thinking: false, effort: false } },
   { name: "sonnet", id: "claude-sonnet-5-5", family: "sonnet", thinking: true, effort: true },
   { name: "opus", id: "claude-opus-5-5", family: "opus", thinking: true, effort: true },
   { name: "fable", id: "claude-fable-5-1", family: "fable", thinking: true, effort: true },

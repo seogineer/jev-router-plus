@@ -182,6 +182,60 @@ test("Claude proxy sends exact account models to Jev and routes the chosen versi
   assert.equal(seen[0].model, "claude-opus-4-8");
 });
 
+test("legacy haiku is stripped of thinking/effort, haiku 5.5 keeps them", async (t) => {
+  const seen = [];
+  const upstream = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      res.setHeader("content-type", "application/json");
+      if (req.url.startsWith("/v1/models")) {
+        return res.end(JSON.stringify({
+          data: [
+            { id: "claude-haiku-5-5", display_name: "Claude Haiku 5" },
+            { id: "claude-haiku-4-5-20251001", display_name: "Claude Haiku 4.5" },
+          ],
+        }));
+      }
+      seen.push(JSON.parse(Buffer.concat(chunks)));
+      res.end('{"id":"msg_1","type":"message","model":"claude-haiku-5-5"}');
+    });
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  t.after(() => upstream.close());
+
+  let pick = "claude-haiku-4-5-20251001";
+  const { port, close } = await startProxy({
+    upstreamURL: `http://127.0.0.1:${upstream.address().port}`,
+    route: async () => ({ choice: pick, confidence: 0.95, ms: 1 }),
+  });
+  t.after(close);
+
+  await fetch(`http://127.0.0.1:${port}/v1/models`).then((response) => response.json());
+  const send = (text) => fetch(`http://127.0.0.1:${port}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "jev-router",
+      tools: [{ name: "Bash" }],
+      thinking: { type: "adaptive" },
+      output_config: { effort: "medium" },
+      messages: [{ role: "user", content: text }],
+    }),
+  });
+
+  await send("legacy haiku question one");
+  assert.equal(seen[0].model, "claude-haiku-4-5-20251001");
+  assert.equal(seen[0].thinking, undefined);
+  assert.equal(seen[0].output_config, undefined);
+
+  pick = "claude-haiku-5-5";
+  await send("completely different second question");
+  assert.equal(seen[1].model, "claude-haiku-5-5");
+  assert.deepEqual(seen[1].thinking, { type: "adaptive" });
+  assert.deepEqual(seen[1].output_config, { effort: "medium" });
+});
+
 test("a routed request without metadata is recorded under the conversation key", async (t) => {
   const upstream = http.createServer((req, res) => {
     req.on("data", () => {});
@@ -327,6 +381,37 @@ test("routing to haiku keeps thinking and effort, which Haiku 5.5 accepts", () =
   assert.deepEqual(body.thinking, { type: "adaptive" });
   assert.deepEqual(body.output_config, { effort: "medium" });
   assert.deepEqual(body.context_management, { edits: [{ type: "clear_thinking_20251015", keep: "all" }] });
+});
+
+const adaptiveBody = () => ({
+  model: "claude-sonnet-4-6",
+  thinking: { type: "adaptive" },
+  output_config: { effort: "medium" },
+  context_management: { edits: [{ type: "clear_thinking_20251015", keep: "all" }] },
+});
+
+test("routing to legacy haiku 4.5 strips thinking and effort", () => {
+  const body = adaptiveBody();
+  applyTier(body, "haiku", "claude-haiku-4-5-20251001");
+  assert.equal(body.model, "claude-haiku-4-5-20251001");
+  assert.equal(body.thinking, undefined);
+  assert.equal(body.output_config, undefined);
+  assert.equal(body.context_management, undefined);
+});
+
+test("a dated haiku 5.5 snapshot keeps thinking and effort", () => {
+  const body = adaptiveBody();
+  applyTier(body, "haiku", "claude-haiku-5-5-20260101");
+  assert.deepEqual(body.thinking, { type: "adaptive" });
+  assert.deepEqual(body.output_config, { effort: "medium" });
+});
+
+test("an older opus version keeps thinking and effort", () => {
+  const body = adaptiveBody();
+  applyTier(body, "opus", "claude-opus-4-8");
+  assert.equal(body.model, "claude-opus-4-8");
+  assert.deepEqual(body.thinking, { type: "adaptive" });
+  assert.deepEqual(body.output_config, { effort: "medium" });
 });
 
 test("routing to opus leaves thinking and effort intact", () => {

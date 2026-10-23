@@ -80,13 +80,16 @@ export function newTurnPrompt(body) {
 /**
  * Points a request at a tier, removing request fields that tier cannot accept. Claude Code
  * composes the body for whatever model it thinks it is talking to, so downgrading to Haiku
- * while leaving `thinking: {type:"adaptive"}` in place is a hard 400.
+ * while leaving `thinking: {type:"adaptive"}` in place is a hard 400. Capabilities are
+ * judged on the model id actually sent, since one tier can hold versions that differ
+ * (haiku 5.5 vs 4.5).
  */
 export function applyTier(body, tierName, model = idOf(tierName)) {
   const tier = tierSpec(tierName);
   if (!tier) return body;
+  const caps = tier.legacy && !String(model).startsWith(tier.id) ? tier.legacy : tier;
   body.model = model;
-  if (!tier.thinking) {
+  if (!caps.thinking) {
     delete body.thinking;
     // A context-management strategy that prunes thinking blocks is itself rejected once
     // thinking is gone, so it has to go with it.
@@ -96,7 +99,7 @@ export function applyTier(body, tierName, model = idOf(tierName)) {
       if (body.context_management.edits.length === 0) delete body.context_management;
     }
   }
-  if (!tier.effort && body.output_config) {
+  if (!caps.effort && body.output_config) {
     delete body.output_config.effort;
     if (Object.keys(body.output_config).length === 0) delete body.output_config;
   }
