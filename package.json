@@ -1,6 +1,6 @@
 {
   "name": "jev-router-plus",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Runs coding CLIs and routes each turn to the cheapest sufficient model using TypeSafe Jev",
   "type": "module",
   "repository": {

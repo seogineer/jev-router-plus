@@ -1,17 +1,26 @@
 import { tierOf } from "./config.mjs";
+import { displayWidth, padEndToWidth, splitByWidth, truncateToWidth } from "./width.mjs";
 // Wide enough for "Selected model: claude-sonnet-4-5-20250929" (42 chars).
 const WIDTH = 46;
+// All sizing below is in terminal columns (display width), not UTF-16 length.
+// Newlines, CRs and tabs would break the box, so they become one space each run.
+// Text is normalized to NFC first: decomposed Hangul (e.g. pasted from macOS file names) has
+// conjoining jamo that terminals draw with zero extra width, which would shift the border.
 const row = (text = "") => {
-  const body = text.length > WIDTH - 2 ? `${text.slice(0, WIDTH - 3)}…` : text;
-  return `│ ${body.padEnd(WIDTH - 2)} │`;
+  const flat = String(text).normalize("NFC").replace(/[\r\n\t]+/g, " ");
+  return `│ ${padEndToWidth(truncateToWidth(flat, WIDTH - 2), WIDTH - 2)} │`;
 };
 const metric = (value) => (Number.isFinite(value) ? value.toFixed(2) : "n/a");
 const wrapped = (label, value) => {
-  const words = `${label}${value}`.replace(/\s+/g, " ").trim().split(" ");
+  const words = `${label}${value}`.normalize("NFC").replace(/\s+/g, " ").trim().split(" ");
   const lines = [];
   for (const word of words) {
-    if (!lines.length || `${lines.at(-1)} ${word}`.length > WIDTH - 2) lines.push(word);
-    else lines[lines.length - 1] += ` ${word}`;
+    if (lines.length && displayWidth(`${lines.at(-1)} ${word}`) <= WIDTH - 2) {
+      lines[lines.length - 1] += ` ${word}`;
+    } else {
+      // A word wider than the box (e.g. a Korean sentence without spaces) is hard-split.
+      lines.push(...splitByWidth(word, WIDTH - 2));
+    }
   }
   return lines.map(row);
 };
