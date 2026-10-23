@@ -1,8 +1,10 @@
 # jev-router-plus
 
-> [gargpratyush/jev-router](https://github.com/gargpratyush/jev-router)를 포크해 OpenRouter 지원, 계정별 모델 목록 반영 등을 추가한 버전입니다. 원본과 같은 환경변수·설정 파일을 씁니다.
+English | [한국어](README.ko.md)
+
+> Fork of [gargpratyush/jev-router](https://github.com/gargpratyush/jev-router) that adds OpenRouter support, per-account model catalogs, and a single `jev` command. It uses the same environment variables and config files as the original.
 >
-> Install with `npm install -g jev-router-plus` and run `jev` (Claude Code), `jev codex`, or `jev explain`. It uses the same environment variables as the original `jev-router`, but the command names differ from the original's, so both can be installed side by side without conflict.
+> Install with `npm install -g jev-router-plus` and run `jev` (Claude Code), `jev codex`, or `jev explain`. The command names differ from the original `jev-router`'s, so both can be installed side by side without conflict.
 
 Automatic per-turn model routing for Claude Code and OpenAI Codex. Jev sends simple work to
 the fast tier and difficult work to the strong tier, while preserving each CLI's native
@@ -17,44 +19,82 @@ Both commands launch the real upstream CLI. Jev only chooses the model for a fre
 
 ## Quick start
 
-Requires Node.js 20.12+ and at least one supported CLI:
-[Claude Code](https://code.claude.com/docs/en/setup) or
-[OpenAI Codex](https://developers.openai.com/codex/cli).
+### 1. Requirements
 
-### 1. npm package
+- Node.js 20.12 or later.
+- [Claude Code](https://code.claude.com/docs/en/setup) and/or
+  [OpenAI Codex](https://developers.openai.com/codex/cli), already installed and logged in.
+  With a subscription login, no Anthropic or OpenAI API key is needed.
+
+### 2. Install from npm
 
 ```bash
 npm install -g jev-router-plus
-echo "JEV_API_KEY=..." > ~/.jev-router.env
 ```
 
-### 2. Local repository
+This installs a single command, `jev`: `jev` (Claude Code), `jev codex`, and `jev explain`.
+The original `jev-router` package uses different command names, so both can be installed side
+by side without conflict. They share the same `~/.jev-router.env` file and environment variables.
+
+To install from source instead:
 
 ```bash
 git clone https://github.com/seogineer/jev-router-plus.git
 cd jev-router-plus
 npm install
 npm link
-echo "JEV_API_KEY=..." > ~/.jev-router.env
 ```
 
-On Windows PowerShell:
+Without `npm link`, run `node bin/jev.mjs` or `node bin/jev.mjs codex` from the checkout.
+
+### 3. Set a routing key
+
+Choose one provider and append its key to `~/.jev-router.env`. Replace `...` with your real key; do not paste the placeholder.
+
+Option A: a TypeSafe key from [TypeSafe](https://docs.typesafe.ai).
+
+```bash
+printf '\nJEV_API_KEY=...\n' >> ~/.jev-router.env
+```
+
+Option B: an OpenRouter key from <https://openrouter.ai/keys>, paid with OpenRouter credits.
+
+```bash
+printf '\nOPENROUTER_API_KEY=...\n' >> ~/.jev-router.env
+```
+
+On Linux and macOS, restrict the file to your user:
+
+```bash
+chmod 600 ~/.jev-router.env
+```
+
+On Windows PowerShell, Option A:
 
 ```powershell
-Set-Content "$HOME\.jev-router.env" "JEV_API_KEY=..."
+Add-Content "$HOME\.jev-router.env" "`nJEV_API_KEY=..."
 ```
 
-Get a key from [TypeSafe](https://docs.typesafe.ai). To pay with OpenRouter credits instead, set
-`OPENROUTER_API_KEY=...` in the same file; Jev answers the same either way. Then launch either
-interface from any repository:
+On Windows PowerShell, Option B:
+
+```powershell
+Add-Content "$HOME\.jev-router.env" "`nOPENROUTER_API_KEY=..."
+```
+
+If both keys are set, TypeSafe is used; add `JEV_PROVIDER=openrouter` to use OpenRouter instead.
+Without a key, the CLI starts without routing. Environment variables already exported in your
+shell take precedence over the file.
+
+### 4. Launch
+
+Run either interface from any repository:
 
 ```bash
 jev
 jev codex
 ```
 
-No Anthropic or OpenAI API key is required when the corresponding CLI is already logged in
-with a subscription. Every CLI argument is forwarded:
+Every CLI argument is forwarded:
 
 ```bash
 jev --resume
@@ -63,8 +103,22 @@ jev codex resume --last
 jev codex exec "fix the failing test"
 ```
 
-For a local checkout, `npm link` installs the `jev` command. Without it, run
-`node bin/jev.mjs` or `node bin/jev.mjs codex`. `jev explain` prints the routing explanation for a session.
+`jev explain <session-id>` prints the routing explanation for a session. Without an argument it only checks the installation; see below.
+
+### 5. Verify, update, and uninstall
+
+```bash
+jev explain
+npm ls -g jev-router-plus
+npm update -g jev-router-plus
+npm uninstall -g jev-router-plus
+```
+
+`jev explain` without an argument reads no session, so in a regular shell it exits with code 0
+and reports that no routing decision has been recorded; use it only to confirm the command is
+installed. To see an actual explanation, run `/jev-explain` in Claude Code, `$jev-explain` in
+Codex, or `jev explain <session-id>`. Do not use `jev --version` to check the installation: it is
+forwarded to Claude Code and prints Claude's version.
 
 ## Claude Code interface
 

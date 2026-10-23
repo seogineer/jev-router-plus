@@ -28,7 +28,7 @@ test("package-lock matches package.json", () => {
 });
 
 test("files entries exist", () => {
-  for (const f of ["bin", "src", "skills", ".claude/skills", "README.md"]) {
+  for (const f of ["bin", "src", "skills", ".claude/skills", "README.md", "README.ko.md"]) {
     assert.ok(pkg.files.includes(f), `files lacks ${f}`);
   }
   for (const f of pkg.files) assert.ok(existsSync(p(f)), `${f} missing`);
@@ -78,6 +78,9 @@ test("no stale renamed-away or bare jev-claude / jev-codex command guidance", ()
     ...walk(p("src")),
     ...walk(p("bin")),
     p("README.md"),
+    p("README.ko.md"),
+    p("docs", "jev-claude-architecture.md"),
+    p("docs", "jev-claude-architecture.ko.md"),
     p(".claude", "skills", "jev-explain", "SKILL.md"),
     p("skills", "codex", "jev-explain", "SKILL.md"),
   ];

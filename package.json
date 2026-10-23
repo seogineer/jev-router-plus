@@ -1,6 +1,6 @@
 {
   "name": "jev-router-plus",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Runs coding CLIs and routes each turn to the cheapest sufficient model using TypeSafe Jev",
   "type": "module",
   "repository": {
@@ -21,7 +21,8 @@
     "bin",
     "skills",
     "src",
-    "README.md"
+    "README.md",
+    "README.ko.md"
   ],
   "keywords": [
     "claude",

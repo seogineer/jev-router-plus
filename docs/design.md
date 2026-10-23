@@ -93,3 +93,50 @@ jev claude ... # 명시적으로 Claude를 지정해도 동일
 3. `npm link` 후 `jev -p "what is 2+2? answer with just the number"`가 응답하고 `[jev]` 라우팅 로그가 나옴 (`env -u OPENROUTER_API_KEY -u JEV_PROVIDER`로 환경 오염 제거 후 확인)
 4. `jev explain`이 동작하고, `jev codex`가 최소한 기동 코드 경로에서 오류 없이 위임됨
 5. 옛 이름 `jev-plus-*`가 어디에도 남아 있지 않음
+
+---
+
+# 개정: 문서 이중 언어(영문·한글), 코드 주석 영어
+
+## 방침
+
+- 사용자용 문서는 **영문판을 기준(원본)** 으로 하고 **한글판**을 함께 둔다. 두 판의 내용·구조·제목 순서·코드 블록·표는 동일해야 하며 번역 대상은 설명 문장뿐이다.
+- 소스 코드의 주석·문자열·식별자는 **영어**로 쓴다. 현재 `src`, `bin`, `test`, 스킬 파일에는 한글이 없으므로 이 상태를 유지하고, 회귀를 막는 테스트를 추가한다.
+- `docs/design.md`는 개발 작업용 내부 문서라 한글 단일본으로 유지한다(번역 대상 아님).
+
+## 파일
+
+| 영문(기준) | 한글 |
+|---|---|
+| `README.md` | `README.ko.md` (신규) |
+| `docs/jev-claude-architecture.md` | `docs/jev-claude-architecture.ko.md` (신규) |
+
+- 두 README 맨 위(제목 바로 아래)에 언어 전환 링크: 영문판은 `English | [한국어](README.ko.md)`, 한글판은 `[English](README.md) | 한국어`. 아키텍처 문서도 같은 방식(`[한국어](jev-claude-architecture.ko.md)` / `[English](jev-claude-architecture.md)`).
+- `README.md` 3행의 한글 포크 고지는 **영어**로 바꾼다: "Fork of [gargpratyush/jev-router](https://github.com/gargpratyush/jev-router) that adds OpenRouter support, per-account model catalogs, and a single `jev` command. It uses the same environment variables and config files as the original." (실제 기능 목록은 현 README 내용과 맞출 것). 한글 고지는 `README.ko.md`로 옮긴다.
+- 한글판의 용어는 통일한다: 명령·환경변수·파일 경로·모델 id·코드 블록은 번역하지 않고 그대로 둔다. 일반 용어는 라우팅(routing), 모델 등급(tier), 포크(fork), 프록시(proxy)로 쓴다.
+- 한글판 README도 CRLF 줄바꿈(기존 README.md와 동일)을 쓴다. `README.md`의 CRLF는 유지한다. 새 `docs/*.ko.md`는 기존 `docs/jev-claude-architecture.md`의 줄바꿈과 맞춘다(`file`로 확인).
+- 이미지 링크(`docs/model-picker.png` 등)는 한글판에서도 같은 파일을 가리킨다(경로는 파일 위치 기준으로 맞출 것).
+
+## package.json / 버전
+
+- `files`에 `README.ko.md`를 추가한다(`docs/`는 계속 제외).
+- 패키지 내용이 바뀌므로 버전을 `0.4.1`로 올린다(`package.json`, `package-lock.json` 최상위·`packages[""]`). 테스트가 하드코딩한 `0.4.0`이 있으면 함께 갱신한다.
+
+## 테스트 (`test/package.test.mjs` 또는 신규 `test/docs.test.mjs`)
+
+1. `README.ko.md`, `docs/jev-claude-architecture.ko.md`가 존재하고, 영문판과 **제목(`#`~`###`) 개수·순서가 같다**(제목 수 비교). 코드 블록(```) 개수도 같다.
+2. 각 문서가 반대 언어판으로 가는 링크를 가진다.
+3. `README.md`와 `docs/jev-claude-architecture.md`에는 한글이 없다.
+4. `src/**`, `bin/**`, `test/**`, `skills/**`, `.claude/skills/**`에는 한글이 없다(주석 영어 규칙). 단, 한글 검사를 하는 이 테스트 파일 자신이 정규식으로 한글 범위를 쓰는 것은 한글 문자 자체가 아니므로 문제없다(유니코드 이스케이프 `\u{AC00}-\u{D7A3}` 사용).
+5. 기존 옛 이름 검사(`jev-plus` 등)의 대상에 `README.ko.md`와 `docs/jev-claude-architecture.ko.md`를 추가한다.
+6. `npm pack --dry-run`에 `README.ko.md`가 포함된다(`files` 항목 존재 검사로 대체 가능).
+
+## 완료 기준
+
+1. `npm test` 전체 통과
+2. 영문·한글 README가 구조(제목·코드 블록)가 같고, 번역이 자연스러우며 명령·환경변수·경로가 영문판과 정확히 일치
+3. `README.md`에 언어 전환 링크 한 줄을 제외하고 한글 0자, `src`·`bin`·`test`·스킬에 한글 0자
+4. 아키텍처 문서도 동일하게 이중 언어
+5. CRLF 유지 (`README.md`, `README.ko.md`), `git diff --stat --ignore-space-at-eol`과 일반 diff가 같음
+6. `npm pack --dry-run`: `README.ko.md` 포함, `docs/` 제외, 민감 파일 없음
+7. 버전 `0.4.1`이 `package.json`·lockfile에서 일치
