@@ -154,6 +154,9 @@ if (process.env.JEV_API_KEY || process.env.TYPESAFE_API_KEY) {
   // 28k with tool search on). The proxy forwards requests untouched, so tool search works
   // through it. A value the user set still wins.
   env.ENABLE_TOOL_SEARCH ??= "true";
+  // Context window defaults to 1M (#35). Only safe because the proxy offers Jev one model per
+  // tier (dedupe); `??=` here, not in autoModelEnv(), so a value the user set still wins.
+  env.CLAUDE_CODE_MAX_CONTEXT_TOKENS ??= "1000000";
   Object.assign(env, autoModelEnv());
   teardown.push(close, () => restoreSavedModel(savedModelBefore));
   args.push(...statusLineArgs());
