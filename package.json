@@ -10,9 +10,7 @@
   "homepage": "https://github.com/seogineer/jev-router-plus#readme",
   "bugs": "https://github.com/seogineer/jev-router-plus/issues",
   "bin": {
-    "jev-plus-claude": "bin/jev-plus-claude.mjs",
-    "jev-plus-codex": "bin/jev-plus-codex.mjs",
-    "jev-plus-explain": "bin/jev-plus-explain.mjs"
+    "jev": "bin/jev.mjs"
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.mjs\"",

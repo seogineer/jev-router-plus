@@ -1,10 +1,10 @@
-# `jev-plus-claude` architecture
+# `jev` architecture
 
 ```mermaid
 flowchart TB
-  user([User]) --> command["`jev-plus-claude`\nCLI wrapper"]
+  user([User]) --> command["`jev`\nCLI wrapper"]
 
-  subgraph launcher["Launcher — bin/jev-plus-claude.mjs"]
+  subgraph launcher["Launcher — bin/claude.mjs"]
     direction TB
     command --> env["Load environment\nprecedence: process env → .env → ~/.jev-router.env → ~/.jev-claude.env"]
     env --> find["Find `claude` executable on PATH"]

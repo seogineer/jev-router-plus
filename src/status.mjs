@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// One file per session rather than a shared map, so concurrent jev-plus-claude sessions can never
+// One file per session rather than a shared map, so concurrent `jev` sessions can never
 // clobber each other's status. Kept in the temp dir so the OS eventually cleans up.
 const DIR = join(tmpdir(), "jev-claude");
 

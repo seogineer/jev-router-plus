@@ -2,7 +2,7 @@
 
 > [gargpratyush/jev-router](https://github.com/gargpratyush/jev-router)를 포크해 OpenRouter 지원, 계정별 모델 목록 반영 등을 추가한 버전입니다. 원본과 같은 환경변수·설정 파일을 씁니다.
 >
-> Install with `npm install -g jev-router-plus` and run `jev-plus-claude` or `jev-plus-codex`. It uses the same environment variables as the original `jev-router`, but the command names differ, so both can be installed side by side without conflict.
+> Install with `npm install -g jev-router-plus` and run `jev` (Claude Code), `jev codex`, or `jev explain`. It uses the same environment variables as the original `jev-router`, but the command names differ from the original's, so both can be installed side by side without conflict.
 
 Automatic per-turn model routing for Claude Code and OpenAI Codex. Jev sends simple work to
 the fast tier and difficult work to the strong tier, while preserving each CLI's native
@@ -10,8 +10,8 @@ interface, tools, sessions, permissions, and authentication.
 
 | Command | Interface | Authentication | Routing decision |
 | --- | --- | --- | --- |
-| `jev-plus-claude` | Claude Code | Existing `claude login` | Status line |
-| `jev-plus-codex` | OpenAI Codex | Existing `codex login` | Commentary line |
+| `jev` | Claude Code | Existing `claude login` | Status line |
+| `jev codex` | OpenAI Codex | Existing `codex login` | Commentary line |
 
 Both commands launch the real upstream CLI. Jev only chooses the model for a fresh user turn.
 
@@ -49,28 +49,28 @@ Get a key from [TypeSafe](https://docs.typesafe.ai). To pay with OpenRouter cred
 interface from any repository:
 
 ```bash
-jev-plus-claude
-jev-plus-codex
+jev
+jev codex
 ```
 
 No Anthropic or OpenAI API key is required when the corresponding CLI is already logged in
 with a subscription. Every CLI argument is forwarded:
 
 ```bash
-jev-plus-claude --resume
-jev-plus-claude -p "fix the failing test"
-jev-plus-codex resume --last
-jev-plus-codex exec "fix the failing test"
+jev --resume
+jev -p "fix the failing test"
+jev codex resume --last
+jev codex exec "fix the failing test"
 ```
 
-For a local checkout, `npm link` installs both commands. Without it, run
-`node bin/jev-plus-claude.mjs` or `node bin/jev-plus-codex.mjs`.
+For a local checkout, `npm link` installs the `jev` command. Without it, run
+`node bin/jev.mjs` or `node bin/jev.mjs codex`. `jev explain` prints the routing explanation for a session.
 
 ## Claude Code interface
 
 ![Jev Router in the Claude Code model picker](docs/model-picker.png)
 
-`jev-plus-claude` launches Claude Code with **Jev Router** selected in `/model`. Selecting another
+`jev` launches Claude Code with **Jev Router** selected in `/model`. Selecting another
 model pauses routing; selecting **Jev Router** resumes it.
 
 The injected status line shows the model used for the last turn:
@@ -85,7 +85,7 @@ Claude Code otherwise remains unchanged, including its keybindings, tools, permi
 set `JEV_NO_STATUSLINE=1` to disable Jev's status line.
 
 The explanation skill is bundled with the npm package and loaded automatically: run
-`/jev-explain` in `jev-plus-claude`, or `$jev-explain` in `jev-plus-codex`, to see the factors behind
+`/jev-explain` in `jev`, or `$jev-explain` in `jev codex`, to see the factors behind
 the last routing decision:
 
 ```text
@@ -117,7 +117,7 @@ the explanation skill does not ask Jev to score the prompt again.
 
 ### Explanation data location
 
-Both `jev-plus-claude` and `jev-plus-codex` keep up to 20 recent routing exchanges in one JSON file per
+Both `jev` and `jev codex` keep up to 20 recent routing exchanges in one JSON file per
 CLI session under Node.js's operating-system temporary directory:
 
 | Platform | Default location |
@@ -133,19 +133,19 @@ node -e "console.log(require('node:path').join(require('node:os').tmpdir(), 'jev
 ```
 
 Claude filenames use Claude Code's session UUID. Codex filenames use
-`codex-<jev-plus-codex-process-id>.json`. These temporary files contain prompt text and Jev's exact
+`codex-<process-id>.json`. These temporary files contain prompt text and Jev's exact
 request and response, so they are readable only by you (the directory is created with mode 700 and each
 file with 600). Files not updated for 7 days are deleted automatically, and the operating system
 may also remove them during normal temporary-file cleanup.
 
-> Choosing a model with `Enter` can save it as Claude Code's default. `jev-plus-claude` restores
+> Choosing a model with `Enter` can save it as Claude Code's default. `jev` restores
 > the previous default on exit so `jev-router` cannot break plain `claude`.
 
 ## OpenAI Codex interface
 
 ![Jev Router in the OpenAI Codex model picker](docs/codex-model-picker.png)
 
-`jev-plus-codex` launches Codex with a temporary **Jev Router** provider and selects `jev-router`.
+`jev codex` launches Codex with a temporary **Jev Router** provider and selects `jev-router`.
 The native `/model` picker still contains the models available to the account. Selecting a
 concrete model pauses routing; selecting **Jev Router** resumes it.
 
@@ -155,7 +155,7 @@ Each fresh decision appears as Codex commentary:
 [Jev] routed this turn to gpt-5.6-sol (jev, confidence 0.91).
 ```
 
-`jev-plus-codex` installs or refreshes the packaged `$jev-explain` skill when it starts, so it is
+`jev codex` installs or refreshes the packaged `$jev-explain` skill when it starts, so it is
 available from any repository without separate setup.
 
 Codex's footer shows `jev-router` because it displays the selected picker entry,
@@ -168,11 +168,11 @@ Each command starts a loopback proxy, launches the real CLI, and forwards the CL
 authorization headers without reading, storing, or modifying them.
 
 ```text
-you -> Claude Code -> jev-plus-claude proxy -> Anthropic
+you -> Claude Code -> jev proxy -> Anthropic
                          |
                          +-> Jev: choose a tier
 
-you -> OpenAI Codex -> jev-plus-codex proxy -> OpenAI
+you -> OpenAI Codex -> jev codex proxy -> OpenAI
                          |
                          +-> Jev: choose a tier
 ```
@@ -252,8 +252,8 @@ echo "JEV_API_KEY=..." > .env
 
 npm test
 node test/live-routing.mjs
-node bin/jev-plus-claude.mjs -p "what is 2+2?"
-node bin/jev-plus-codex.mjs exec "what is 2+2?"
+node bin/jev.mjs -p "what is 2+2?"
+node bin/jev.mjs codex exec "what is 2+2?"
 ```
 
 The test suite covers shared policy, both request formats, model rewriting, capability

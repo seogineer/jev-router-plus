@@ -10,15 +10,13 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const p = (...s) => join(ROOT, ...s);
 const pkg = JSON.parse(readFileSync(p("package.json"), "utf8"));
 const lock = JSON.parse(readFileSync(p("package-lock.json"), "utf8"));
-const BINS = ["jev-plus-claude", "jev-plus-codex", "jev-plus-explain"];
+const BINS = ["jev", "claude", "codex", "explain"];
 
 test("package name and bin map", () => {
   assert.equal(pkg.name, "jev-router-plus");
-  assert.deepEqual(Object.keys(pkg.bin).sort(), [...BINS].sort());
-  for (const [name, target] of Object.entries(pkg.bin)) {
-    assert.equal(target, `bin/${name}.mjs`);
-    assert.ok(existsSync(p(target)), `${target} missing`);
-  }
+  assert.deepEqual(pkg.bin, { jev: "bin/jev.mjs" });
+  for (const name of BINS) assert.ok(existsSync(p("bin", `${name}.mjs`)), `bin/${name}.mjs missing`);
+  assert.ok(existsSync(p("bin", "jev-statusline.mjs")));
 });
 
 test("package-lock matches package.json", () => {
@@ -43,28 +41,22 @@ test("bin files pass node --check", () => {
   }
 });
 
-test("bin files are executable", (t) => {
-  for (const name of BINS) {
-    try {
-      accessSync(p("bin", `${name}.mjs`), constants.X_OK);
-    } catch {
-      t.diagnostic(`${name}.mjs is not executable`);
-      assert.fail(`${name}.mjs lacks exec bit`);
-    }
-  }
+test("bin/jev.mjs is executable and has a shebang", () => {
+  accessSync(p("bin", "jev.mjs"), constants.X_OK);
+  assert.match(readFileSync(p("bin", "jev.mjs"), "utf8"), /^#!\/usr\/bin\/env node\r?\n/);
 });
 
 test("modules imported by bins load without import errors", async () => {
   // The claude/codex bins launch real CLIs on import and have no --help, so only their
   // dependencies are imported here.
-  for (const m of ["proxy", "config", "settings", "status", "log", "jev-client", "codex-cli", "explain"]) {
+  for (const m of ["proxy", "config", "settings", "status", "log", "jev-client", "codex-cli", "explain", "dispatch"]) {
     await import(p("src", `${m}.mjs`));
   }
 });
 
-test("jev-plus-explain runs without crashing (no network, isolated tmpdir)", () => {
+test("jev explain runs without crashing (no network, isolated tmpdir)", () => {
   const dir = mkdtempSync(join(tmpdir(), "jev-pkg-test-"));
-  const r = spawnSync(process.execPath, [p("bin", "jev-plus-explain.mjs"), "no-such-session"], {
+  const r = spawnSync(process.execPath, [p("bin", "jev.mjs"), "explain", "no-such-session"], {
     encoding: "utf8",
     env: { PATH: process.env.PATH, TMPDIR: dir, HOME: dir },
     timeout: 15000,
@@ -81,8 +73,17 @@ function walk(dir) {
   });
 }
 
-test("no stale bare jev-claude / jev-codex command guidance", () => {
-  const files = [...walk(p("src")), ...walk(p("bin")), p("README.md")];
+test("no stale renamed-away or bare jev-claude / jev-codex command guidance", () => {
+  const files = [
+    ...walk(p("src")),
+    ...walk(p("bin")),
+    p("README.md"),
+    p(".claude", "skills", "jev-explain", "SKILL.md"),
+    p("skills", "codex", "jev-explain", "SKILL.md"),
+  ];
+  for (const f of files) {
+    assert.doesNotMatch(readFileSync(f, "utf8"), new RegExp("jev-" + "plus"), `${f} mentions an old command name`);
+  }
   // Old command used as a command: followed by space/backtick, not part of a path, dotfile, or name.
   const stale = /(?<![\w.\-/\\])jev-(claude|codex)(?=[ `])/;
   const hits = [];
