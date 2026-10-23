@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   addJevModel,
   applyCodexTier,
@@ -15,7 +16,7 @@ import {
   startCodexProxy,
   upstreamFor,
 } from "../src/codex-proxy.mjs";
-import { codexArgs, installCodexSkill } from "../src/codex-cli.mjs";
+import { codexArgs, installCodexSkill, renderCodexSkill } from "../src/codex-cli.mjs";
 import { readStatus } from "../src/status.mjs";
 
 test("Codex uses a temporary authenticated Jev provider", () => {
@@ -32,7 +33,24 @@ test("installs the bundled explanation skill for Codex", (t) => {
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const target = installCodexSkill(home);
   assert.match(target, /jev-router-explain[\\/]SKILL\.md$/);
-  assert.match(readFileSync(target, "utf8"), /name: jev-explain/);
+  const text = readFileSync(target, "utf8");
+  assert.match(text, /name: jev-explain/);
+  assert.doesNotMatch(text, /\{\{EXPLAIN_COMMAND\}\}/);
+  const script = /node "([^"]+)"/.exec(text)?.[1];
+  assert.ok(script && existsSync(script), `skill points at a missing script: ${script}`);
+  assert.equal(script, resolve(script));
+  assert.match(script, /bin[\\/]explain\.mjs$/);
+  const run = spawnSync(process.execPath, [script, "no-such-session"], { encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  // Installing again over identical content leaves the file untouched.
+  const before = statSync(target).mtimeMs;
+  installCodexSkill(home);
+  assert.equal(statSync(target).mtimeMs, before);
+});
+
+test("rendering quotes a script path containing spaces and shell metacharacters", () => {
+  const out = renderCodexSkill("Run `{{EXPLAIN_COMMAND}}` once", '/tmp/a b/$x"y/bin/explain.mjs');
+  assert.equal(out, 'Run `node "/tmp/a b/\\$x\\"y/bin/explain.mjs"` once');
 });
 
 test("reads only fresh Codex user turns", () => {

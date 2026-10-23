@@ -107,3 +107,46 @@ test("state stays inside the sandbox and no key reaches the delegate", withSandb
   assert.deepEqual(readdirSync(home), []);
   assert.ok(resolve(tmp).startsWith(tmpdir()));
 }));
+
+const KEYS = ["JEV_API_KEY", "TYPESAFE_API_KEY", "OPENROUTER_API_KEY"];
+const keyFile = "JEV_API_KEY=fake-key-1\nTYPESAFE_API_KEY=fake-key-2\nOPENROUTER_API_KEY=fake-key-3\nOTHER_VAR=kept\n";
+
+test("routing keys read from an env file stay out of the claude child environment", withSandbox(({ run, recorded, home }) => {
+  writeFileSync(join(home, ".jev-router.env"), keyFile);
+  const r = run(["-p", "hello"]);
+  assert.equal(r.status, 0, r.stderr);
+  const { env } = recorded();
+  for (const key of KEYS) assert.ok(!env.includes(key), `${key} leaked`);
+  assert.ok(env.includes("ANTHROPIC_BASE_URL"), "routing should have started from the file key");
+  assert.ok(env.includes("OTHER_VAR"), "other env file variables still pass through");
+}));
+
+test("routing keys read from an env file stay out of the codex child environment", withSandbox(({ run, recorded, home }) => {
+  writeFileSync(join(home, ".jev-router.env"), keyFile);
+  const r = run(["codex", "exec", "hi"]);
+  assert.equal(r.status, 0, r.stderr);
+  const { argv, env } = recorded();
+  for (const key of KEYS) assert.ok(!env.includes(key), `${key} leaked`);
+  assert.ok(argv.includes('model_provider="jev"'), "routing should have started from the file key");
+  assert.ok(env.includes("OTHER_VAR"));
+}));
+
+test("routing keys the user exported stay in the child environment", withSandbox(({ run, recorded, home }) => {
+  writeFileSync(join(home, ".jev-router.env"), keyFile);
+  const exported = { JEV_API_KEY: "fake-exported" };
+  for (const args of [["-p", "hello"], ["codex", "exec", "hi"]]) {
+    const r = run(args, exported);
+    assert.equal(r.status, 0, r.stderr);
+    const { env } = recorded();
+    assert.ok(env.includes("JEV_API_KEY"), `exported key dropped for ${args[0]}`);
+    assert.ok(!env.includes("TYPESAFE_API_KEY") && !env.includes("OPENROUTER_API_KEY"));
+  }
+}));
+
+test("jev codex installs a skill pointing at this package's explain script", withSandbox(({ run, home }) => {
+  assert.equal(run(["codex", "exec", "hi"]).status, 0);
+  const text = readFileSync(join(home, ".agents", "skills", "jev-router-explain", "SKILL.md"), "utf8");
+  const script = /node "([^"]+)"/.exec(text)?.[1];
+  assert.equal(script, join(ROOT, "bin", "explain.mjs"));
+  assert.ok(existsSync(script));
+}));

@@ -1,19 +1,35 @@
 import { spawn } from "node:child_process";
-import { accessSync, constants, copyFileSync, mkdirSync } from "node:fs";
+import { accessSync, chmodSync, constants, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CODEX_AUTO_MODEL, startCodexProxy } from "./codex-proxy.mjs";
+import { childEnv, routingKeysPresent } from "./child-env.mjs";
 import { describeMissingJev, resolveJevProvider } from "./jev-client.mjs";
 
 const PROVIDER = "jev";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const EXPLAIN_SKILL = join(ROOT, "skills", "codex", "jev-explain", "SKILL.md");
+const EXPLAIN_SCRIPT = join(ROOT, "bin", "explain.mjs");
+
+// The bundled skill is a template: the placeholder becomes a command that runs this package's
+// own script, so `$jev-explain` works without `jev` being on PATH.
+export function renderCodexSkill(template, script = EXPLAIN_SCRIPT) {
+  const quote = (value) => `"${value.replace(/(["\\$`])/g, "\\$1")}"`;
+  return template.replaceAll("{{EXPLAIN_COMMAND}}", `node ${quote(script)}`);
+}
 
 export function installCodexSkill(home = homedir()) {
   const target = join(home, ".agents", "skills", "jev-router-explain", "SKILL.md");
+  const content = renderCodexSkill(readFileSync(EXPLAIN_SKILL, "utf8"));
+  try {
+    if (readFileSync(target, "utf8") === content) return target;
+  } catch {
+    // Not installed yet.
+  }
   mkdirSync(dirname(target), { recursive: true });
-  copyFileSync(EXPLAIN_SKILL, target);
+  writeFileSync(target, content, { mode: 0o600 });
+  chmodSync(target, 0o600);
   return target;
 }
 
@@ -73,6 +89,7 @@ export const codexArgs = (baseURL, args) => [
 
 // Loads configuration, starts the optional routing proxy, and launches the Codex CLI.
 export async function runCodex() {
+  const routingKeysBefore = routingKeysPresent();
   loadEnv();
   try {
     installCodexSkill();
@@ -109,7 +126,7 @@ export async function runCodex() {
   const child = spawn(
     command.file,
     command.shell ? childArgs.map((arg) => (/\s/.test(arg) ? `"${arg}"` : arg)) : childArgs,
-    { stdio: "inherit", shell: command.shell, env: process.env },
+    { stdio: "inherit", shell: command.shell, env: childEnv(routingKeysBefore) },
   );
   child.on("error", (err) => {
     close();

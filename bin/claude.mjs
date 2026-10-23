@@ -10,6 +10,7 @@ import { readSavedModel, restoreSavedModel } from "../src/settings.mjs";
 import { STATUS_DIR, writePrivate } from "../src/status.mjs";
 import { LOG_FILE } from "../src/log.mjs";
 import { describeMissingJev, resolveJevProvider } from "../src/jev-client.mjs";
+import { childEnv, routingKeysPresent } from "../src/child-env.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = dirname(HERE);
@@ -73,6 +74,10 @@ function statusLineArgs() {
   return ["--settings", file];
 }
 
+// Routing keys the user exported themselves; any other copy came from an env file below and is
+// kept out of the child's environment.
+const routingKeysBefore = routingKeysPresent();
+
 // Existing environment variables win, followed by project-local, shared user-level, then
 // the legacy Claude-specific file.
 for (const file of [
@@ -113,7 +118,7 @@ function resolveClaude() {
 
 const args = process.argv.slice(2);
 args.push("--add-dir", ROOT);
-const env = { ...process.env };
+const env = childEnv(routingKeysBefore);
 
 const claude = resolveClaude();
 if (!claude) {

@@ -19,7 +19,7 @@ flowchart TB
     launchEnv --> statusCfg{"Status line allowed?"}
     statusCfg -- "No: JEV_NO_STATUSLINE or user statusLine" --> spawn
     statusCfg -- Yes --> statusCfgFile["Write temporary Claude status-line settings"] --> spawn
-    direct --> spawn["Spawn real Claude Code\nwith original CLI arguments"]
+    direct --> spawn["Spawn real Claude Code\nwith original CLI arguments plus --add-dir\nRouting keys loaded from env files\nare removed from the child environment"]
   end
 
   spawn --> claude["Claude Code\n(native UI, login, tools, sessions, permissions)"]

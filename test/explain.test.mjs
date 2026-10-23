@@ -23,10 +23,10 @@ test("formats the last routing decision", () => {
 
   assert.match(output, /Task complexity     0\.82/);
   assert.match(output, /Prompt: Explain the router/);
-  assert.match(output, /Current tier: HAIKU/);
+  assert.match(output, /Current tier: haiku/);
   assert.match(output, /Context tokens: 6200/);
   assert.match(output, /Recommended tier: SONNET/);
-  assert.match(output, /Selected model: SONNET/);
+  assert.match(output, /Selected model: sonnet/);
   assert.match(output, /Confidence: 94%/);
   assert.match(output, /Decision: Jev recommendation/);
 });
@@ -44,18 +44,48 @@ test("recommended tier is Jev's pick, not the tier policy settled on", () => {
     },
   });
   assert.match(output, /Recommended tier: HAIKU/);
-  assert.match(output, /Selected model: CLAUDE-SONNET-5/);
+  assert.match(output, /Selected model: claude-sonnet-5/);
   assert.match(output, /Decision: low confidence; held/);
 });
 
 test("shows the concrete provider model when available", () => {
   assert.match(
     formatExplanation({ tier: "haiku", model: "gpt-5.6-luna", confidence: 0.99 }),
-    /Selected model: GPT-5\.6-LUNA/,
+    /Selected model: gpt-5\.6-luna/,
   );
 });
 
 test("Claude skill pre-approves its read-only explanation command", () => {
   const skill = readFileSync(new URL("../.claude/skills/jev-explain/SKILL.md", import.meta.url), "utf8");
   assert.match(skill, /^allowed-tools: Bash\(node \*\)$/m);
+});
+
+test("box shows the tier of a full model id and the whole selected model id", () => {
+  for (const model of ["claude-haiku-5-5", "claude-sonnet-4-5-20250929"]) {
+    const output = formatExplanation({
+      prompt: "x",
+      tier: "haiku",
+      model,
+      confidence: 0.9,
+      reason: "jev",
+      jev: { request: { state: { session: { current_model: "claude-opus-5-5", context_tokens: 1 } } } },
+    });
+    assert.match(output, /Current tier: opus /);
+    assert.ok(output.includes(`Selected model: ${model} `), output);
+    assert.ok(!output.includes("…"));
+    const widths = new Set(output.split("\n").map((line) => [...line].length));
+    assert.equal(widths.size, 1, "all box lines have the same width");
+  }
+});
+
+test("unknown current model is shown as is; an overlong model id ends with an ellipsis", () => {
+  const output = formatExplanation({
+    prompt: "x",
+    tier: "haiku",
+    model: "vendor/some-extremely-long-model-identifier-v1234567890",
+    jev: { request: { state: { session: { current_model: "mystery-1" } } } },
+  });
+  assert.match(output, /Current tier: mystery-1 /);
+  assert.match(output, /Selected model: vendor\/some-extremely-long-… /);
+  assert.equal(new Set(output.split("\n").map((line) => [...line].length)).size, 1);
 });

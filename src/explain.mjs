@@ -1,6 +1,10 @@
 import { tierOf } from "./config.mjs";
-const WIDTH = 33;
-const row = (text = "") => `│ ${text.slice(0, WIDTH - 2).padEnd(WIDTH - 2)} │`;
+// Wide enough for "Selected model: claude-sonnet-4-5-20250929" (42 chars).
+const WIDTH = 46;
+const row = (text = "") => {
+  const body = text.length > WIDTH - 2 ? `${text.slice(0, WIDTH - 3)}…` : text;
+  return `│ ${body.padEnd(WIDTH - 2)} │`;
+};
 const metric = (value) => (Number.isFinite(value) ? value.toFixed(2) : "n/a");
 const wrapped = (label, value) => {
   const words = `${label}${value}`.replace(/\s+/g, " ").trim().split(" ");
@@ -34,13 +38,15 @@ export function formatExplanation(status) {
     status.jev?.response?.answers?.model?.choice ??
     status.jev?.response?.answers?.model_tier?.choice;
   const recommendation = (raw && (tierOf(raw) ?? raw)) || status.tier || "unknown";
+  const currentModel = request?.session?.current_model;
+  const currentTier = currentModel ? (tierOf(currentModel) ?? currentModel) : "unknown";
   return [
     `┌${"─".repeat(WIDTH)}┐`,
     row("Jev Router"),
     row(),
     row("Jev request"),
     ...wrapped("Prompt: ", status.prompt ?? "not recorded"),
-    row(`Current tier: ${(request?.session?.current_model ?? "unknown").toUpperCase()}`),
+    row(`Current tier: ${currentTier}`),
     row(`Context tokens: ${request?.session?.context_tokens ?? "unknown"}`),
     row(),
     row("Jev response"),
@@ -50,7 +56,7 @@ export function formatExplanation(status) {
     row(`Context size        ${metric(m.contextSize)}`),
     row(),
     row(`Recommended tier: ${recommendation.toUpperCase()}`),
-    row(`Selected model: ${(status.model ?? status.tier ?? "unknown").toUpperCase()}`),
+    row(`Selected model: ${status.model ?? status.tier ?? "unknown"}`),
     row(),
     row(`Confidence: ${status.confidence == null ? "n/a" : `${Math.round(status.confidence * 100)}%`}`),
     row(`Decision: ${decision(status.reason)}`),

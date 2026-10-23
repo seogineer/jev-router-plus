@@ -140,3 +140,55 @@ jev claude ... # 명시적으로 Claude를 지정해도 동일
 5. CRLF 유지 (`README.md`, `README.ko.md`), `git diff --stat --ignore-space-at-eol`과 일반 diff가 같음
 6. `npm pack --dry-run`: `README.ko.md` 포함, `docs/` 제외, 민감 파일 없음
 7. 버전 `0.4.1`이 `package.json`·lockfile에서 일치
+
+---
+
+# 개정: README 사실 검토 결과 반영 (0.4.2)
+
+verifier가 README 전체를 코드와 대조해 찾은 문제를 반영한다. 코드 3건(M5, C1, M3)을 먼저 고치고, README는 **수정된 코드의 실제 동작**을 기준으로 영·한 동시에 고친다. 줄 번호는 검토 당시 기준이므로 본문 텍스트로 위치를 찾을 것. 버전은 `0.4.2`.
+
+## A. 코드 수정
+
+**M5. 라우팅 키가 자식 CLI와 그 도구 셸로 새는 문제** (`bin/claude.mjs` ~78-88,116 / `src/codex-cli.mjs` ~261-273,353)
+- 현재: env 파일(`.env`, `~/.jev-router.env`, `~/.jev-claude.env`)에서 읽은 모든 변수가 `process.env`에 들어가고, 그대로 Claude/Codex 자식 프로세스에 전달되어 모델이 실행하는 모든 Bash 명령에서 `JEV_API_KEY`/`OPENROUTER_API_KEY`가 보인다.
+- 수정: 라우팅 키 이름 `JEV_API_KEY`, `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` 중, **env 파일 로딩 전에는 환경에 없었는데 로딩 후 생긴 것**만 자식 프로세스 환경에서 제거한다. 사용자가 셸에서 직접 export한 값은 사용자 의도이므로 그대로 둔다(사용자의 다른 도구가 같은 변수를 쓸 수 있다). 프록시는 같은 프로세스의 `process.env`를 계속 읽어야 하므로 `process.env` 자체는 건드리지 말고, spawn에 넘기는 env 객체만 걸러낸다. 로딩 전/후 비교 로직은 두 launcher가 공유하도록 `src/`의 작은 함수(예: `childEnv(before, after)` 또는 비슷한 이름)로 만들어 중복을 피한다. Codex가 자식 CLI 인증에 이 변수들을 실제로 필요로 하는지(예: provider 설정의 env_key) 코드를 읽어 확인하고, 필요하면 그 경로를 깨지 않게 한다 — 필요 여부와 결과를 보고할 것.
+- `.env` 전체 로딩(프로젝트 `.env`의 모든 변수가 자식에게 전달됨)은 동작을 바꾸지 않고 README에 사실대로 명시한다.
+- 테스트(`test/jev-cli.test.mjs` 확장): 임시 HOME의 `.jev-router.env`에 가짜 키를 두고 가짜 claude/codex를 띄웠을 때 자식 환경에 그 키 이름이 없음. 같은 키를 환경변수로 export해 두면 자식 환경에 남음. 가짜 키로 프록시가 뜨더라도 외부 네트워크 호출이 나가지 않게(가짜 claude/codex는 요청을 보내지 않음) 하고, 불안정하면 해당 항목만 빼고 이유를 보고.
+
+**C1. Codex 스킬이 `jev` 명령에 의존** (`skills/codex/jev-explain/SKILL.md:7`, 설치: `src/codex-cli.mjs` ~254-258)
+- 현재: 스킬이 "Run `jev explain`"이라고만 해서 `npm link` 없이 `node bin/jev.mjs codex`로 쓰면 `$jev-explain`이 실패한다.
+- 수정: 스킬을 설치할 때(`installCodexSkill`) 명령을 **이 패키지의 `bin/explain.mjs` 절대 경로**를 가리키는 `node "<절대경로>/bin/explain.mjs"`로 치환해서 쓴다(템플릿 자리표시자 방식, 쉘에서 경로 인용 주의, 경로에 공백이 있어도 동작). 번들 `skills/codex/jev-explain/SKILL.md`는 자리표시자를 가진 템플릿이 되며 npm 패키지에 그대로 포함된다. 스킬이 이미 같은 내용이면 다시 쓰지 않는 기존 로직과 파일 권한(소유자 전용) 처리를 유지한다. 기존 테스트(`installs the bundled explanation skill for Codex`, `test/jev-cli.test.mjs`의 스킬 설치 확인)를 갱신하고, 절대 경로가 실제로 존재하는 파일을 가리키는지 검사를 추가한다.
+
+**M3. `/jev-explain` 박스 출력** (`src/explain.mjs` ~229-230, 270, 280)
+- 현재: `Current tier:`에 모델 ID가 대문자로, `Selected model:`이 31자에서 잘려 `CLAUDE-HAIKU-5-`처럼 출력된다.
+- 수정: `Current tier:`는 등급 이름(예: `opus`)을 보여준다(모델 ID에서 등급을 구하는 기존 함수를 재사용, 알 수 없으면 모델 ID 그대로), `Selected model:`은 대문자화하지 않은 **전체 모델 ID**를 보여주고 박스 너비 안에서 잘리면 `…`로 끝내되 정상 길이의 모델 ID(`claude-haiku-5-5`, `claude-sonnet-4-5-20250929`)는 잘리지 않게 박스 폭을 맞춘다. 관련 테스트(`test/explain.test.mjs`)를 갱신한다.
+
+## B. README 수정 (영문 기준, 한글 동일 반영, 구조·코드 블록 개수 동일 유지, CRLF 유지)
+
+수정된 코드의 동작을 기준으로 쓴다.
+
+- **C1**: 소스 설치 안내에서 `npm link` 없이도 `$jev-explain`이 동작한다고 쓰되 근거는 수정된 스킬(절대 경로)이다. 또는 사실대로 조건을 명확히.
+- **M1**: "keeping only the newest model of each tier"는 Claude만. `jev`는 계정 카탈로그에서 등급별 최신 Claude 모델만, `jev codex`는 카탈로그에서 등급에 매핑되는 모든 GPT 모델을 Jev에 보낸다고 고친다. Codex 매핑 규칙(astra/fable/long→long, sol/opus/strong/max/pro→strong, luna/haiku/fast/mini/nano→fast, 그 외 `gpt-`→balanced)과 `JEV_CODEX_*` 변수를 빈 문자열로 두면 빈 문자열이 쓰인다는 점을 Codex 절에 짧게(Minor 8).
+- **M2**: 상태 표시줄 예시를 실제 출력으로: `claude-haiku-5-5 (p=0.98) · my-project · 8% context`, 수동 선택 `⏸ manual Opus 5.5 · my-project · 21% context`, 신뢰도 부족 `claude-sonnet-5-5 (p=0.25) (low-confidence-capped) · …`, 첫 프롬프트 전 `jev: waiting for first prompt`. 실제 `bin/jev-statusline.mjs`를 읽고 정확한 형식을 확인할 것(⚡ 없음, 옛 모델명 Opus 4.6 제거).
+- **M3**: `/jev-explain` 예시를 수정된 출력과 일치시킨다.
+- **M4**: "Claude Code otherwise remains unchanged"를 삭제하고, `jev`가 바꾸는 것을 나열: 항상 `--add-dir <패키지 루트>` 추가, 라우팅이 켜지면 `CLAUDE_CODE_MAX_CONTEXT_TOKENS=1000000`, `ENABLE_TOOL_SEARCH=true`, `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`, `CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT=1` 설정, 센티널 모델(`jev-router`) 선택 중에는 Claude Code가 Advisor를 끄고 `unrecognized_model` 알림을 낸다는 점(bin/claude.mjs를 읽어 정확히).
+- **M5**: 수정된 코드 기준으로 "env 파일에서 읽은 라우팅 키(`JEV_API_KEY` 등)는 실행되는 CLI와 그 도구 셸에 전달되지 않지만, 셸에서 export한 값과 `.env`의 다른 모든 변수는 전달된다. 실행한 디렉터리의 `.env`는 통째로 로드되므로 신뢰하는 저장소에서만 쓰라"고 쓴다. `chmod 600` 안내는 유지하되 보호 범위를 오해하지 않게 한 문장 보강.
+- **M6**: `jev codex`가 `~/.agents/skills/jev-router-explain/SKILL.md`를 쓰고 `npm uninstall`로 지워지지 않으므로 삭제/업데이트 절에 수동 삭제 방법 추가. 공존 설명에 "두 패키지는 이 Codex 스킬 경로가 같아 마지막에 실행한 쪽이 내용을 덮어쓴다"를 추가(옛 명령 이름 정규식에 걸리지 않게 표현).
+- **M7**: `JEV_DUMP`는 파일 이름 접두사이며 `<접두사>.<timestamp>.json`에 프롬프트·코드를 포함한 모든 요청 본문을 기본 권한으로 쓴다고 경고.
+- **M8**: "Nothing else is [sent]"를 정확하게: 프롬프트 텍스트, 현재 모델, 추정 컨텍스트 크기, 사용 가능한 모델 ID와 설명.
+- **Minor**: (1) 버전 문구를 사실대로: "이 포크는 Linux(Node 24)에서 Claude Code 2.1.309, Codex CLI 0.153.4로 확인했다. 원 프로젝트는 Windows에서 Claude Code v2.1.101, Codex v0.154.0으로 개발"로, 확인하지 못한 환경(Windows/macOS)은 "미검증"이라고 명시. (2) 스크린샷 두 장은 그대로 두고 캡션/문장으로 "이미지는 이전 모델명·표시를 보여준다"고 명시, Codex 선택기의 항목 이름은 `jev-router`라고 정정. (3) 모델 선택기 복원 문구 "cannot break plain claude"를 "정상 종료 시 복원, 강제 종료(SIGKILL)되면 다음 `jev` 실행 때까지 센티널이 남을 수 있다"로. (4) "steps upward" 규칙: fable로는 올리지 않고, 더 높은 등급이 없으면 내려간다(src/policy.mjs). (5) `JEV_DEBUG` 행: 라우팅 실패는 JEV_DEBUG 없이도 `~/.jev-claude.log`에 기록, `-p` 모드에서는 로그가 stderr. (6) "starts Claude Code without routing"→"starts the CLI without routing". (7) Codex는 첫 턴에도 실제 컨텍스트 값을 정책에 전달해 첫 턴 다운그레이드가 캐시 가드에 막힐 수 있다는 차이를 한 줄. (9) `jev explain <session-id>`의 ID 출처: Claude는 세션 UUID, Codex는 `codex-<pid>`(스킬이 알아서 전달하므로 보통 직접 쓸 일 없음)로 설명. (10) Codex "unavailable" 메시지의 의미(키가 있어도 네트워크/Jev 실패 시 나옴). (11) 사용자가 `ANTHROPIC_MODEL`을 직접 설정했으면 그 값이 우선해 Jev Router로 시작하지 않는다. (12) 환경변수 표에 `TYPESAFE_DEFAULT_MODEL`, `TYPESAFE_LOG_LEVEL`(SDK가 읽음; 동작을 SDK 코드로 확인하고 확인 안 되면 쓰지 말 것). (13) "until the CLI fetches its catalog"→"until the catalog is fetched". (14) `jev claude` 하위 명령과, 첫 인자가 `claude`/`codex`/`explain`이면 하위 명령으로 취급된다는 점. (15) 한글판 "(normally under ...)"를 한국어로. (16) 개발 섹션의 `echo ... > .env`가 기존 `.env`를 덮어쓴다는 주의.
+- 같은 오류가 영·한 양쪽에 있으므로 두 파일을 항상 함께 고친다. 한글 번역은 기존 용어 규칙(라우팅/등급/포크/프록시, 등급 이름은 영어)을 따른다.
+
+## C. 부수 작업
+
+- `package.json`/`package-lock.json` 버전을 `0.4.2`로.
+- `docs/jev-claude-architecture.md`(+`.ko.md`)가 위 코드 변경(예: 키 전달)으로 부정확해지는 곳이 있으면 함께 수정.
+- 미해결로 남기는 것(보고에 명시): Windows/macOS 동작, `jev codex exec`/`resume` 서브커맨드 라우팅, 스크린샷 재촬영.
+
+## 완료 기준
+
+1. `npm test` 전체 통과(기존 124 + 신규), 신규 테스트가 M5·C1·M3을 각각 검증.
+2. 임시 HOME에서 env 파일의 가짜 키가 자식 환경에 없고, export한 키는 남는다. 설치된 Codex 스킬의 명령이 실제 존재하는 `bin/explain.mjs` 절대 경로를 가리키며 `node`로 실제 실행 시 종료코드 0.
+3. `jev explain <session-id>`가 등급 이름과 전체 모델 ID를 올바르게 출력(샘플 상태 파일로).
+4. 영·한 README/아키텍처 문서: 제목·코드 블록 개수 동일, 한글 검사 통과, CRLF 유지, 위 B 항목 전부 반영.
+5. `npm pack --dry-run`에 변경된 스킬 템플릿 포함, 민감 파일 없음, 버전 0.4.2.
