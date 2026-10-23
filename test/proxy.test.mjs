@@ -100,9 +100,10 @@ test("the first turn has no prompt cache to protect, so a large opening message 
     const chunks = [];
     req.on("data", (chunk) => chunks.push(chunk));
     req.on("end", () => {
-      seen.push(JSON.parse(Buffer.concat(chunks)));
       res.setHeader("content-type", "application/json");
-      res.end('{"id":"msg_1","type":"message","model":"claude-haiku-4-5-20251001"}');
+      if (req.url?.startsWith("/v1/models")) return res.end('{"data":[]}');
+      seen.push(JSON.parse(Buffer.concat(chunks)));
+      res.end('{"id":"msg_1","type":"message","model":"claude-haiku-5-5"}');
     });
   });
   await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
@@ -110,7 +111,7 @@ test("the first turn has no prompt cache to protect, so a large opening message 
 
   const { port, close } = await startProxy({
     upstreamURL: `http://127.0.0.1:${upstream.address().port}`,
-    route: async () => ({ choice: "claude-haiku-4-5-20251001", confidence: 0.95, ms: 1 }),
+    route: async () => ({ choice: "claude-haiku-5-5", confidence: 0.95, ms: 1 }),
   });
   t.after(close);
 
@@ -127,7 +128,7 @@ test("the first turn has no prompt cache to protect, so a large opening message 
     }),
   });
 
-  assert.equal(seen[0].model, "claude-haiku-4-5-20251001", "first turn pinned to opus by the cache guard");
+  assert.equal(seen[0].model, "claude-haiku-5-5", "first turn pinned to opus by the cache guard");
 });
 
 test("Claude proxy sends exact account models to Jev and routes the chosen version", async (t) => {
