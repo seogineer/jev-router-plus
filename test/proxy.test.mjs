@@ -81,17 +81,38 @@ test("recognises older model versions within a tier", () => {
   assert.equal(tierOf(undefined), null);
 });
 
-test("keeps available Claude model versions as separate Jev choices", () => {
+test("keeps only the newest model of each tier as a Jev choice", () => {
   assert.deepEqual(
     claudeModels([
       { id: "claude-opus-5-5", display_name: "Claude Opus 5" },
       { id: "claude-opus-4-8", display_name: "Claude Opus 4.8" },
+      { id: "claude-sonnet-5-5", display_name: "Claude Sonnet 5" },
     ]).map(({ id, tier }) => ({ id, tier })),
     [
       { id: "claude-opus-5-5", tier: "opus" },
-      { id: "claude-opus-4-8", tier: "opus" },
+      { id: "claude-sonnet-5-5", tier: "sonnet" },
     ],
   );
+});
+
+test("claudeModels judges the newest version by created_at when the catalog has it", () => {
+  // Version numbers say 4-8 is older, but the catalog's release dates win.
+  assert.deepEqual(
+    claudeModels([
+      { id: "claude-opus-5-5", created_at: "2026-01-01T00:00:00Z" },
+      { id: "claude-opus-4-8", created_at: "2026-06-01T00:00:00Z" },
+    ]).map(({ id }) => id),
+    ["claude-opus-4-8"],
+  );
+});
+
+test("claudeModels compares id version numbers numerically when created_at is missing", () => {
+  const ids = (catalog) => claudeModels(catalog.map((id) => ({ id }))).map((model) => model.id);
+  assert.deepEqual(ids(["claude-sonnet-4-5-20250929", "claude-sonnet-5-5"]), ["claude-sonnet-5-5"]);
+  assert.deepEqual(ids(["claude-sonnet-5-5", "claude-sonnet-4-5-20250929"]), ["claude-sonnet-5-5"]);
+  assert.deepEqual(ids(["claude-opus-4-5-20251101", "claude-opus-5-5"]), ["claude-opus-5-5"]);
+  // 4-10 is newer than 4-9 even though "10" < "9" as strings.
+  assert.deepEqual(ids(["claude-opus-4-9", "claude-opus-4-10"]), ["claude-opus-4-10"]);
 });
 
 test("the first turn has no prompt cache to protect, so a large opening message can still start cheap", async (t) => {
@@ -149,7 +170,7 @@ test("Claude proxy sends exact account models to Jev and routes the chosen versi
       }
       seen.push(JSON.parse(Buffer.concat(chunks)));
       res.setHeader("content-type", "application/json");
-      res.end('{"id":"msg_1","type":"message","model":"claude-opus-4-8"}');
+      res.end('{"id":"msg_1","type":"message","model":"claude-opus-5-5"}');
     });
   });
   await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
@@ -160,10 +181,9 @@ test("Claude proxy sends exact account models to Jev and routes the chosen versi
     route: async ({ models }) => {
       assert.deepEqual(models.map((model) => model.id), [
         "claude-opus-5-5",
-        "claude-opus-4-8",
         "claude-sonnet-5-5",
       ]);
-      return { choice: "claude-opus-4-8", confidence: 0.91, ms: 1 };
+      return { choice: "claude-opus-5-5", confidence: 0.91, ms: 1 };
     },
   });
   t.after(close);
@@ -179,10 +199,10 @@ test("Claude proxy sends exact account models to Jev and routes the chosen versi
     }),
   });
 
-  assert.equal(seen[0].model, "claude-opus-4-8");
+  assert.equal(seen[0].model, "claude-opus-5-5");
 });
 
-test("legacy haiku is stripped of thinking/effort, haiku 5.5 keeps them", async (t) => {
+test("a catalog with two haiku versions offers only 5.5, which keeps thinking/effort", async (t) => {
   const seen = [];
   const upstream = http.createServer((req, res) => {
     const chunks = [];
@@ -204,10 +224,12 @@ test("legacy haiku is stripped of thinking/effort, haiku 5.5 keeps them", async 
   await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
   t.after(() => upstream.close());
 
-  let pick = "claude-haiku-4-5-20251001";
   const { port, close } = await startProxy({
     upstreamURL: `http://127.0.0.1:${upstream.address().port}`,
-    route: async () => ({ choice: pick, confidence: 0.95, ms: 1 }),
+    route: async ({ models }) => {
+      assert.deepEqual(models.map((model) => model.id), ["claude-haiku-5-5"]);
+      return { choice: "claude-haiku-5-5", confidence: 0.95, ms: 1 };
+    },
   });
   t.after(close);
 
@@ -224,16 +246,12 @@ test("legacy haiku is stripped of thinking/effort, haiku 5.5 keeps them", async 
     }),
   });
 
-  await send("legacy haiku question one");
-  assert.equal(seen[0].model, "claude-haiku-4-5-20251001");
-  assert.equal(seen[0].thinking, undefined);
-  assert.equal(seen[0].output_config, undefined);
-
-  pick = "claude-haiku-5-5";
-  await send("completely different second question");
-  assert.equal(seen[1].model, "claude-haiku-5-5");
-  assert.deepEqual(seen[1].thinking, { type: "adaptive" });
-  assert.deepEqual(seen[1].output_config, { effort: "medium" });
+  // Legacy haiku stripping is covered by the applyTier unit test; the old version is
+  // simply never offered while the catalog has a newer one.
+  await send("haiku question");
+  assert.equal(seen[0].model, "claude-haiku-5-5");
+  assert.deepEqual(seen[0].thinking, { type: "adaptive" });
+  assert.deepEqual(seen[0].output_config, { effort: "medium" });
 });
 
 test("a routed request without metadata is recorded under the conversation key", async (t) => {

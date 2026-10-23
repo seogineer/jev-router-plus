@@ -106,10 +106,42 @@ export function applyTier(body, tierName, model = idOf(tierName)) {
   return body;
 }
 
-/** Exact Claude models reported by the account, newest first; static ids are the cold-start fallback. */
+/** Splits an id into numeric and non-numeric tokens, e.g. "opus-4-10" -> ["opus", 4, 10]. */
+const idTokens = (id) =>
+  String(id).match(/\d+|[^\d\-_.]+/g).map((token) => (/^\d+$/.test(token) ? Number(token) : token));
+
+/** Negative when `a` is the older id. Numbers compare as numbers, so 4-10 beats 4-9. */
+function compareIds(a, b) {
+  const [x, y] = [idTokens(a), idTokens(b)];
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    if (x[i] === y[i]) continue;
+    if (typeof x[i] === "number" && typeof y[i] === "number") return x[i] - y[i];
+    return String(x[i]) < String(y[i]) ? -1 : 1;
+  }
+  return x.length - y.length;
+}
+
+/** Positive when `a` is newer than `b`: release date when both have one, else the id's version numbers. */
+function compareFreshness(a, b) {
+  const [ta, tb] = [Date.parse(a.created_at), Date.parse(b.created_at)];
+  if (!Number.isNaN(ta) && !Number.isNaN(tb) && ta !== tb) return ta - tb;
+  return compareIds(a.id, b.id);
+}
+
+/**
+ * Exact Claude models reported by the account, one per tier: the newest. Older versions of
+ * a tier are not offered to Jev; static ids are the cold-start fallback.
+ */
 export function claudeModels(catalog = []) {
+  const newest = new Map();
+  for (const model of catalog) {
+    const tier = tierOf(model?.id);
+    if (tier && (!newest.has(tier) || compareFreshness(model, newest.get(tier)) > 0)) {
+      newest.set(tier, model);
+    }
+  }
   const models = catalog
-    .filter((model) => tierOf(model?.id))
+    .filter((model) => newest.get(tierOf(model?.id)) === model)
     .map((model) => ({
       id: model.id,
       tier: tierOf(model.id),
