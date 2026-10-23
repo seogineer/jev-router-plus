@@ -339,7 +339,7 @@ export async function startProxy({ upstreamURL = ANTHROPIC_BASE_URL, route = ask
             // `claude -p` omits metadata on the first request of a session, so there is no
             // session id to file the decision under and it would be dropped. The conversation
             // key is stable for the same conversation and is already what `debug` prints, so
-            // it is the identifier a user can pass to `jev-explain` for a print-mode run.
+            // it is the identifier a user can pass to `jev-plus-explain` for a print-mode run.
             if (fresh && !explaining) {
               writeDecision(sessionOf(body) || key, { tier, ...fresh, at: Date.now() });
             }

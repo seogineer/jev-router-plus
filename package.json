@@ -1,18 +1,18 @@
 {
-  "name": "jev-router",
-  "version": "0.3.0",
+  "name": "jev-router-plus",
+  "version": "0.4.0",
   "description": "Runs coding CLIs and routes each turn to the cheapest sufficient model using TypeSafe Jev",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gargpratyush/jev-router.git"
+    "url": "git+https://github.com/seogineer/jev-router-plus.git"
   },
-  "homepage": "https://github.com/gargpratyush/jev-router#readme",
-  "bugs": "https://github.com/gargpratyush/jev-router/issues",
+  "homepage": "https://github.com/seogineer/jev-router-plus#readme",
+  "bugs": "https://github.com/seogineer/jev-router-plus/issues",
   "bin": {
-    "jev-claude": "bin/jev-claude.mjs",
-    "jev-codex": "bin/jev-codex.mjs",
-    "jev-explain": "bin/jev-explain.mjs"
+    "jev-plus-claude": "bin/jev-plus-claude.mjs",
+    "jev-plus-codex": "bin/jev-plus-codex.mjs",
+    "jev-plus-explain": "bin/jev-plus-explain.mjs"
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.mjs\"",

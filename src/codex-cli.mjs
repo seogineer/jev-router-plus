@@ -83,7 +83,7 @@ export async function runCodex() {
   if (!command) {
     process.stderr.write(
       "[jev] OpenAI Codex is not installed, or `codex` is not on your PATH.\n" +
-        "[jev] jev-codex runs the real Codex CLI; install it first:\n" +
+        "[jev] jev-plus-codex runs the real Codex CLI; install it first:\n" +
         "[jev]   https://developers.openai.com/codex/cli\n",
     );
     process.exitCode = 1;
@@ -101,7 +101,7 @@ export async function runCodex() {
   } else {
     process.stderr.write(
       `[jev] ${describeMissingJev()} - starting Codex without routing\n` +
-        `[jev] add JEV_API_KEY=... or OPENROUTER_API_KEY=... to ${join(homedir(), ".jev-router.env")} and restart jev-codex\n`,
+        `[jev] add JEV_API_KEY=... or OPENROUTER_API_KEY=... to ${join(homedir(), ".jev-router.env")} and restart jev-plus-codex\n`,
     );
   }
 

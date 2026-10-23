@@ -119,7 +119,7 @@ const claude = resolveClaude();
 if (!claude) {
   process.stderr.write(
     "[jev] Claude Code is not installed, or `claude` is not on your PATH.\n" +
-      "[jev] jev-claude runs the real Claude Code CLI; install it first:\n" +
+      "[jev] jev-plus-claude runs the real Claude Code CLI; install it first:\n" +
       "[jev]   https://code.claude.com/docs/en/setup\n",
   );
   process.exit(1);
