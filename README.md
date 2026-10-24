@@ -407,10 +407,12 @@ injection, and decision display.
   text and are not routed; if Claude Code rewords them, add a pattern in `src/config.mjs`.
 - Claude Code and Codex request formats are not public contracts. Use `JEV_DUMP` to diagnose
   upstream changes.
-- This fork was verified end to end on Linux (Node 24) with Claude Code 2.1.309. The Codex launcher was
-  only tested against Codex CLI 0.153.4 being installed and with a fake CLI in the tests; routing through
-  a real Codex session has not been verified. The original project was developed on Windows against
-  Claude Code v2.1.101 and OpenAI Codex v0.154.0. Windows and macOS are unverified for this fork.
+- This fork was verified end to end on Linux (Node 24) with Claude Code 2.1.310 and Codex CLI 0.164.0:
+  real interactive sessions were routed by Jev, and `/jev-explain` and `$jev-explain` showed the
+  decision. The original project was developed on Windows against Claude Code v2.1.101 and OpenAI Codex
+  v0.154.0. Windows and macOS are unverified for this fork.
+- Codex 0.164.0 shows a startup warning, "Running without the shared background server", because
+  `jev codex` passes `-c` configuration overrides. It is expected and routing still works.
 
 ## Contributing
 

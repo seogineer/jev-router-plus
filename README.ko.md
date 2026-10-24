@@ -396,10 +396,12 @@ node bin/jev.mjs codex exec "what is 2+2?"
 - Claude Code의 자체 보조 요청(프롬프트 추천, 자리 비움 요약)은 시작 문구로 판별해 라우팅하지 않습니다.
   Claude Code가 문구를 바꾸면 `src/config.mjs`에 패턴을 추가하세요.
 - Claude Code와 Codex의 요청 형식은 공개된 규약이 아닙니다. upstream 변경을 진단하려면 `JEV_DUMP`를 사용하세요.
-- 이 포크는 Linux(Node 24)에서 Claude Code 2.1.309로 끝까지 확인했습니다. Codex 실행기는 Codex CLI 0.153.4가
-  설치된 상태와 테스트의 가짜 CLI로만 시험했으며, 실제 Codex 세션을 통한 라우팅은 검증하지 않았습니다. 원 프로젝트는
+- 이 포크는 Linux(Node 24)에서 Claude Code 2.1.310과 Codex CLI 0.164.0으로 끝까지 확인했습니다. 실제 대화형
+  세션이 Jev로 라우팅되었고, `/jev-explain`과 `$jev-explain`이 결정 내용을 보여 주었습니다. 원 프로젝트는
   Windows에서 Claude Code v2.1.101과 OpenAI Codex v0.154.0을 기준으로 개발되었습니다. 이 포크의 Windows와
   macOS 동작은 검증하지 않았습니다.
+- Codex 0.164.0은 시작할 때 "Running without the shared background server" 경고를 표시합니다. `jev codex`가
+  `-c` 설정 재정의를 넘기기 때문이며, 예상된 동작이고 라우팅은 정상 동작합니다.
 
 ## 기여
 

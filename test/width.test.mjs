@@ -119,7 +119,9 @@ test("width helpers stay fast on very long input", () => {
   truncateToWidth(s, 44);
   splitByWidth(s, 44);
   displayWidth(s);
-  assert.ok(Date.now() - start < 1000);
+  // Guards against quadratic behaviour (minutes at this size), not a benchmark: the test runner
+  // executes files in parallel, so a loaded machine can take well over a second here.
+  assert.ok(Date.now() - start < 5000);
 });
 
 test("invisible format characters have zero width", () => {
