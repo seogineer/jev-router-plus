@@ -150,3 +150,39 @@ test("jev codex installs a skill pointing at this package's explain script", wit
   assert.equal(script, join(ROOT, "bin", "explain.mjs"));
   assert.ok(existsSync(script));
 }));
+
+const PKG_VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
+
+test("jev --version prints our version, then the claude --version output", withSandbox(({ dir, home, run }) => {
+  const stub = join(dir, "bin", "claude");
+  writeFileSync(stub, `#!${process.execPath}\nconsole.log("9.9.9 (Claude Code)");\n`);
+  chmodSync(stub, 0o755);
+  for (const flag of ["--version", "-v"]) {
+    const r = run([flag]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout, `jev-router-plus ${PKG_VERSION}\n9.9.9 (Claude Code)\n`);
+  }
+  assert.deepEqual(readdirSync(home), [], "must not write to HOME");
+}));
+
+test("jev --version propagates a failing claude exit code", withSandbox(({ dir, run }) => {
+  const stub = join(dir, "bin", "claude");
+  writeFileSync(stub, `#!${process.execPath}\nprocess.exit(3);\n`);
+  chmodSync(stub, 0o755);
+  const r = run(["--version"]);
+  assert.equal(r.status, 3);
+  assert.equal(r.stdout, `jev-router-plus ${PKG_VERSION}\n`);
+}));
+
+test("jev --version without claude prints only our line and exits 0", withSandbox(({ dir, cwd, home, tmp }) => {
+  const empty = join(dir, "empty");
+  mkdirSync(empty);
+  const r = spawnSync(process.execPath, [JEV, "--version"], {
+    cwd,
+    env: { PATH: empty, HOME: home, USERPROFILE: home, TMPDIR: tmp },
+    encoding: "utf8",
+    timeout: 20000,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(r.stdout, `jev-router-plus ${PKG_VERSION}\n`);
+}));

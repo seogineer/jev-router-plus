@@ -33,6 +33,18 @@ export const tierSpec = (name) => TIERS.find((t) => t.name === name);
  */
 export const AUTO_MODEL = "jev-router";
 
+/**
+ * Prompts Claude Code sends for its own side requests (suggestions, away recaps), anchored at the
+ * start. A human prompt rarely starts this way, and a false positive only means that turn is not
+ * routed and keeps the conversation's current tier (Opus when it has none yet, see
+ * `state.tier ?? "opus"` in proxy.mjs). The generic pattern requires the colon that both known
+ * forms have. If Claude Code rewords these, capture one with JEV_DUMP and add a pattern here.
+ */
+export const CLAUDE_AUX_PROMPT_PATTERNS = [
+  /^\[[A-Z][A-Z _-]*MODE:/,
+  /^The user stepped away\b/,
+];
+
 /** Whether a request should be routed, or passed through as the user's own choice. */
 export const isAuto = (model) => model === AUTO_MODEL;
 

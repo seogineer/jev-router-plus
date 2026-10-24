@@ -329,3 +329,49 @@ verifier·tester 보고: `src/explain.mjs`의 박스(`row`, `wrapped`)가 패딩
 1. `npm test` 전체 통과.
 2. 403 비래치·401 래치·동시 401 로그 1회가 테스트로 고정.
 3. README 영/한·Codex 문구에 403 언급이 사실과 맞음, 버전 0.4.6 일치, 줄바꿈 회귀 없음.
+
+---
+
+# 개정: `jev --version`, 보조 요청 판별 강화, 스크린샷 교체 (0.4.7)
+
+## 1. `jev --version` (선택 항목 5)
+
+현재 `jev --version`은 Claude Code로 그대로 넘어가 Claude 버전만 출력해서, README가 "설치 확인에 쓰지 말라"고 안내한다.
+
+- `src/dispatch.mjs`: 인자가 **정확히** `["--version"]` 또는 `["-v"]`이면 target `version`. 그 외(`jev codex --version`, `jev -p --version ...`)는 지금처럼.
+- `bin/version.mjs`(신규): 첫 줄에 `jev-router-plus <package.json version>`을 출력한 뒤 `claude --version`을 실행해 그 출력을 그대로 잇는다(stdio inherit). `claude`가 없으면(ENOENT) 우리 줄만 출력하고 exit 0. claude가 실패하면 그 exit code를 전달. 키 로딩·프록시 시작·settings 변경 등 부수효과 없음.
+- package `files`에 `bin`이 이미 포함되어 있는지 확인.
+- README 영/한 section 5: "Do not use `jev --version`..." 문장을 `jev --version`이 두 버전을 보여 준다는 설명으로 바꾸고, 확인 명령 블록에 `jev --version` 추가(코드 블록은 영/한 동일).
+
+## 2. 보조 요청 판별 강화 (선택 항목 6)
+
+Claude Code가 문구를 바꾸면 판별이 조용히 깨져 0.4.3 동작(보조 요청이 라우팅되고 상태를 덮어씀)으로 돌아간다.
+
+- 판별 패턴을 `src/config.mjs`의 이름 있는 상수(예: `CLAUDE_AUX_PROMPT_PATTERNS`, 정규식 배열)로 옮기고, `isClaudeAuxiliaryPrompt`는 그 배열을 사용.
+- 일반화 패턴 추가: 대괄호로 시작하는 대문자 "MODE" 태그(`^\[[A-Z][A-Z _-]*MODE\b`)는 Claude Code 내부 모드 지시로 보고 보조 요청으로 취급. 사람의 프롬프트가 이렇게 시작할 가능성은 낮고, 오판해도 결과는 "그 턴을 라우팅하지 않고 직전 모델 유지"라 안전하다는 근거를 주석에 영어로.
+- 자리 비움 요약 패턴은 마침표 등 세부 문구에 덜 민감하게(`^The user stepped away\b`).
+- `JEV_DEBUG`일 때 보조 요청을 건너뛰면 `skip auxiliary: <앞 40자>` 형식으로 debug 로그(프롬프트 전체는 남기지 않음).
+- 문서: `docs/jev-claude-architecture.md`/`.ko.md`에 "Claude Code 보조 요청(추천·요약)은 라우팅하지 않는다, 문구가 바뀌면 `JEV_DUMP`로 요청을 캡처해 `src/config.mjs` 패턴에 추가" 한 단락. README Limitations에 한 줄(영/한).
+
+## 3. 스크린샷 교체 (선택 항목 4) — 메인 세션에서 직접
+
+- 실제 `jev`(Claude Code)와 `jev codex`를 pty로 띄워 `/model` 선택기 화면을 캡처하고, 터미널 화면을 PNG로 렌더링해 `docs/model-picker.png`, `docs/codex-model-picker.png`를 교체한다(기존처럼 Jev Router 항목에 초록 상자 강조).
+- README 영/한의 "이 스크린샷은 이전 모델명..." 문장을 제거하거나 현재와 맞게 수정. 이 부분은 developer가 건드리지 않는다.
+
+## 테스트
+
+- dispatch: `["--version"]`, `["-v"]` → version; `["codex","--version"]`, `["-p","--version"]` → 기존.
+- `jev --version`: 스텁 claude(기존 jev-cli 테스트 방식, 샌드박스 HOME)로 첫 줄 `jev-router-plus <version>` + 스텁 출력, exit code 전달; claude 없음 → 우리 줄만, exit 0.
+- aux: 새 일반화 패턴 true(`[PLAN MODE: ...]`, `[SUGGESTION MODE: ...]`), 소문자/중간 위치/일반 대괄호(`[WIP] fix`) false; `The user stepped away` 변형 true. 기존 통합 테스트 유지.
+- docs 패리티 테스트 통과.
+
+## 부수
+
+- 버전 `0.4.7`. 줄바꿈 유지, 코드·테스트 한글 금지, 영어 주석.
+
+## 완료 기준
+
+1. `npm test` 전체 통과.
+2. `jev --version`이 두 버전을 출력(테스트 고정), README 안내가 사실과 일치.
+3. 보조 요청 패턴이 config로 이동·일반화, debug 로그, 문서 반영.
+4. 스크린샷이 현재 화면, README 캡션 정리, 버전 0.4.7 일치, 줄바꿈 회귀 없음.

@@ -567,6 +567,15 @@ test("isClaudeAuxiliaryPrompt matches Claude Code's side requests only at the st
   assert.equal(isClaudeAuxiliaryPrompt("fix the bug"), false);
   assert.equal(isClaudeAuxiliaryPrompt(""), false);
   assert.equal(isClaudeAuxiliaryPrompt(null), false);
+  for (const yes of [
+    "[PLAN MODE: x]",
+    "[SUGGESTION MODE: x]",
+    "The user stepped away and is coming back. Recap",
+    "The user stepped away, recap",
+  ]) assert.equal(isClaudeAuxiliaryPrompt(yes), true, yes);
+  for (const no of ["[plan mode] x", "[WIP] fix", "fix [SUGGESTION MODE:", "plain text"]) {
+    assert.equal(isClaudeAuxiliaryPrompt(no), false, no);
+  }
   assert.equal(isClaudeAuxiliaryPrompt(undefined), false);
 });
 

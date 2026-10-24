@@ -11,6 +11,7 @@ import {
   tierSpec,
   isAuto,
   shouldUseExactModel,
+  CLAUDE_AUX_PROMPT_PATTERNS,
 } from "./config.mjs";
 import { askJev, jevAuthFailure } from "./router.mjs";
 import { decide } from "./policy.mjs";
@@ -49,8 +50,7 @@ export function sanitizeSchema(node) {
  * and the same conversation, so they look like a new user turn. They are not the user's work.
  */
 export const isClaudeAuxiliaryPrompt = (prompt) =>
-  typeof prompt === "string" &&
-  /^(?:\[SUGGESTION MODE:|The user stepped away and is coming back\.)/.test(prompt.trim());
+  typeof prompt === "string" && CLAUDE_AUX_PROMPT_PATTERNS.some((re) => re.test(prompt.trim()));
 
 /**
  * The text of a genuinely new user turn, or null.
@@ -294,7 +294,9 @@ export async function startProxy({ upstreamURL = ANTHROPIC_BASE_URL, route = ask
             const prompt = newTurnPrompt(body);
             // Auxiliary requests are rewritten to the current model like a follow-up, but must not
             // route, change the conversation's tier, or overwrite the status /jev-explain shows.
-            const explaining = prompt?.includes("<jev-explain>") || isClaudeAuxiliaryPrompt(prompt);
+            const auxiliary = isClaudeAuxiliaryPrompt(prompt);
+            if (auxiliary) debug(`skip auxiliary: ${prompt.trim().slice(0, 40)}`);
+            const explaining = prompt?.includes("<jev-explain>") || auxiliary;
             let fresh = null;
             if (prompt && !explaining) {
               await ensureCatalog(req.headers);

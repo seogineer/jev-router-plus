@@ -10,7 +10,7 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const p = (...s) => join(ROOT, ...s);
 const pkg = JSON.parse(readFileSync(p("package.json"), "utf8"));
 const lock = JSON.parse(readFileSync(p("package-lock.json"), "utf8"));
-const BINS = ["jev", "claude", "codex", "explain"];
+const BINS = ["jev", "claude", "codex", "explain", "version"];
 
 test("package name and bin map", () => {
   assert.equal(pkg.name, "jev-router-plus");
@@ -44,6 +44,11 @@ test("bin files pass node --check", () => {
 test("bin/jev.mjs is executable and has a shebang", () => {
   accessSync(p("bin", "jev.mjs"), constants.X_OK);
   assert.match(readFileSync(p("bin", "jev.mjs"), "utf8"), /^#!\/usr\/bin\/env node\r?\n/);
+});
+
+test("bin/version.mjs is executable and has a shebang", () => {
+  accessSync(p("bin", "version.mjs"), constants.X_OK);
+  assert.match(readFileSync(p("bin", "version.mjs"), "utf8"), /^#!\/usr\/bin\/env node\r?\n/);
 });
 
 test("modules imported by bins load without import errors", async () => {

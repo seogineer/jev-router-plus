@@ -10,6 +10,11 @@ const cases = [
   [["--resume"], "claude", ["--resume"]],
   [["-p", "hello"], "claude", ["-p", "hello"]],
   [["codexish"], "claude", ["codexish"]],
+  [["--version"], "version", []],
+  [["-v"], "version", []],
+  [["codex", "--version"], "codex", ["--version"]],
+  [["-p", "--version"], "claude", ["-p", "--version"]],
+  [["--version", "-p"], "claude", ["--version", "-p"]],
 ];
 
 for (const [argv, target, args] of cases) {

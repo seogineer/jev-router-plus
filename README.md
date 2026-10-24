@@ -121,6 +121,7 @@ so you rarely need to type it. Without an argument the command only checks the i
 ### 5. Verify, update, and uninstall
 
 ```bash
+jev --version
 jev explain
 npm ls -g jev-router-plus
 npm update -g jev-router-plus
@@ -130,8 +131,10 @@ npm uninstall -g jev-router-plus
 `jev explain` without an argument reads no session, so in a regular shell it exits with code 0
 and reports that no routing decision has been recorded; use it only to confirm the command is
 installed. To see an actual explanation, run `/jev-explain` in Claude Code, `$jev-explain` in
-Codex, or `jev explain <session-id>`. Do not use `jev --version` to check the installation: it is
-forwarded to Claude Code and prints Claude's version.
+Codex, or `jev explain <session-id>`. `jev --version` (or `jev -v`) prints
+`jev-router-plus <version>` on the first line, followed by the output of `claude --version`; if
+`claude` is not installed it prints only the first line. It starts no session and loads no keys.
+Any other use of `--version` (for example `jev codex --version`) is passed to the CLI unchanged.
 
 `npm uninstall` does not remove the Codex skill that `jev codex` wrote to
 `~/.agents/skills/jev-router-explain/SKILL.md`, nor your `~/.jev-router.env`. Delete the
@@ -151,7 +154,7 @@ in `~/.jev-router.env` (or the shell variable, if you exported it), then restart
 
 ![Jev Router in the Claude Code model picker](docs/model-picker.png)
 
-The screenshot shows older model names and labels than the current release.
+Captured with Claude Code v2.1.310.
 
 `jev` launches Claude Code with **Jev Router** selected in `/model`, unless you set
 `ANTHROPIC_MODEL` yourself, in which case your value wins and the session does not start on Jev Router.
@@ -242,8 +245,8 @@ may also remove them during normal temporary-file cleanup.
 
 ![Jev Router in the OpenAI Codex model picker](docs/codex-model-picker.png)
 
-The screenshot shows older model names than the current release. The picker lists the routing
-entry as `jev-router`.
+Captured with Codex CLI v0.164.0. The picker labels the routing entry Jev Router; once selected, its model id
+shown in the session header is `jev-router`.
 
 `jev codex` launches Codex with a temporary **Jev Router** provider and selects `jev-router`.
 The native `/model` picker still contains the models available to the account. Selecting a
@@ -400,6 +403,8 @@ injection, and decision display.
   chosen provider, starts the CLI without routing (with a warning). Variables exported in the
   shell take precedence over `~/.jev-router.env`.
 - Jev adds latency only to the first request of a turn; tool-loop continuations add none.
+- Claude Code's own side requests (prompt suggestions, away recaps) are recognized by their opening
+  text and are not routed; if Claude Code rewords them, add a pattern in `src/config.mjs`.
 - Claude Code and Codex request formats are not public contracts. Use `JEV_DUMP` to diagnose
   upstream changes.
 - This fork was verified end to end on Linux (Node 24) with Claude Code 2.1.309. The Codex launcher was

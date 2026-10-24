@@ -77,3 +77,8 @@ flowchart TB
 The routing call happens only for the first request of a user turn. Tool-loop continuations reuse
 the pinned tier, avoiding repeated routing latency and model changes mid-task. A concrete model
 chosen in Claude Code bypasses routing until the user selects **Jev Router** again.
+
+Claude Code's own side requests (prompt suggestions, away recaps) are not routed: they are
+recognized by their opening text (`CLAUDE_AUX_PROMPT_PATTERNS` in `src/config.mjs`) and sent on with
+the current model, without changing the conversation's tier or the status shown by `/jev-explain`.
+If Claude Code rewords them, capture a request with `JEV_DUMP` and add a pattern in `src/config.mjs`.

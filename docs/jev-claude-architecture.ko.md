@@ -78,3 +78,8 @@ flowchart TB
 고정된 등급을 재사용하므로, 라우팅 지연이 반복되거나 작업 도중 모델이 바뀌는 일이 없습니다.
 Claude Code에서 구체적인 모델을 선택하면, 사용자가 **Jev Router**를 다시 선택할 때까지
 라우팅을 건너뜁니다.
+
+Claude Code의 자체 보조 요청(프롬프트 추천, 자리 비움 요약)은 라우팅하지 않습니다. 시작 문구
+(`src/config.mjs`의 `CLAUDE_AUX_PROMPT_PATTERNS`)로 판별해 현재 모델로 그대로 보내며, 대화의 등급이나
+`/jev-explain`이 보여 주는 상태를 바꾸지 않습니다. Claude Code가 문구를 바꾸면 `JEV_DUMP`로 요청을
+캡처해 `src/config.mjs`에 패턴을 추가하세요.

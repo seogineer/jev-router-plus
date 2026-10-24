@@ -119,6 +119,7 @@ CLI로 전달되지 않습니다.
 ### 5. 확인, 업데이트, 삭제
 
 ```bash
+jev --version
 jev explain
 npm ls -g jev-router-plus
 npm update -g jev-router-plus
@@ -128,7 +129,9 @@ npm uninstall -g jev-router-plus
 인자 없는 `jev explain`은 세션을 읽지 않으므로 일반 셸에서는 라우팅 결정이 기록되지 않았다고 알리고
 종료 코드 0으로 끝납니다. 명령이 설치되었는지 확인하는 용도로만 쓰세요. 실제 설명은 Claude Code에서 `/jev-explain`,
 Codex에서 `$jev-explain`, 또는 `jev explain <session-id>`로 확인합니다.
-설치 확인에 `jev --version`은 쓰지 마세요. Claude Code로 전달되어 Claude의 버전이 출력됩니다.
+`jev --version`(또는 `jev -v`)은 첫 줄에 `jev-router-plus <version>`을 출력하고, 이어서 `claude --version`의
+출력을 보여 줍니다. `claude`가 설치되어 있지 않으면 첫 줄만 출력합니다. 세션을 시작하지 않고 키도 읽지 않습니다.
+그 밖의 `--version` 사용(예: `jev codex --version`)은 해당 CLI로 그대로 전달됩니다.
 
 `npm uninstall`은 `jev codex`가 `~/.agents/skills/jev-router-explain/SKILL.md`에 쓴 Codex 스킬과
 `~/.jev-router.env`를 지우지 않습니다. `~/.agents/skills/jev-router-explain` 디렉터리는 직접 삭제하세요
@@ -147,7 +150,7 @@ API 키를 거부한 것(HTTP 401)이며, 재시작하기 전까지 라우팅은
 
 ![Jev Router in the Claude Code model picker](docs/model-picker.png)
 
-이 스크린샷은 현재 릴리스보다 이전의 모델 이름과 표시를 보여 줍니다.
+Claude Code v2.1.310에서 캡처했습니다.
 
 `jev`는 `/model`에서 **Jev Router**가 선택된 상태로 Claude Code를 실행합니다. 단, 직접
 `ANTHROPIC_MODEL`을 설정했다면 그 값이 우선하므로 Jev Router로 시작하지 않습니다.
@@ -235,8 +238,8 @@ Claude 파일명은 Claude Code의 세션 UUID를 사용하고, Codex 파일명�
 
 ![Jev Router in the OpenAI Codex model picker](docs/codex-model-picker.png)
 
-이 스크린샷은 현재 릴리스보다 이전의 모델 이름을 보여 줍니다. 선택기에는 라우팅 항목이
-`jev-router`로 표시됩니다.
+Codex CLI v0.164.0에서 캡처했습니다. 선택기에는 라우팅 항목이 Jev Router로 표시되고,
+선택하면 세션 헤더에 보이는 모델 ID는 `jev-router`입니다.
 
 `jev codex`는 임시 **Jev Router** 프로바이더로 Codex를 실행하고 `jev-router`를 선택합니다.
 네이티브 `/model` 선택기에는 계정에서 사용할 수 있는 모델이 그대로 표시됩니다. 특정
@@ -390,6 +393,8 @@ node bin/jev.mjs codex exec "what is 2+2?"
   프로바이더의 키가 없으면 (경고와 함께) 라우팅 없이 CLI를 시작합니다. 셸에서 export한
   변수가 `~/.jev-router.env`보다 우선합니다.
 - Jev는 턴의 첫 요청에만 지연을 더하며, 도구 루프의 이어지는 요청에는 지연이 없습니다.
+- Claude Code의 자체 보조 요청(프롬프트 추천, 자리 비움 요약)은 시작 문구로 판별해 라우팅하지 않습니다.
+  Claude Code가 문구를 바꾸면 `src/config.mjs`에 패턴을 추가하세요.
 - Claude Code와 Codex의 요청 형식은 공개된 규약이 아닙니다. upstream 변경을 진단하려면 `JEV_DUMP`를 사용하세요.
 - 이 포크는 Linux(Node 24)에서 Claude Code 2.1.309로 끝까지 확인했습니다. Codex 실행기는 Codex CLI 0.153.4가
   설치된 상태와 테스트의 가짜 CLI로만 시험했으며, 실제 Codex 세션을 통한 라우팅은 검증하지 않았습니다. 원 프로젝트는
