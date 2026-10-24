@@ -32,7 +32,7 @@ function clampToAvailable(tier, available) {
  * @param {string} input.current       tier currently active in the session
  * @param {string[]} input.available   tier names the account can run
  * @param {number} input.contextTokens approximate size of the conversation so far
- * @param {?{status: number}} input.jevError  set when Jev rejected the API key (HTTP 401/403)
+ * @param {?{status: number}} input.jevError  set when Jev rejected the API key (HTTP 401)
  * @returns {{tier: string, reason: string, changed: boolean}}
  */
 export function decide({ prompt, jev, current, available, contextTokens = 0, jevError = null }) {

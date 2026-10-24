@@ -143,7 +143,7 @@ If `npm install` or `npm update` does not pick up a release that was just publis
 is stale: run `npm install -g jev-router-plus@latest --prefer-online`.
 
 If `/jev-explain` (`$jev-explain` in Codex) shows `Decision: Jev key rejected; held`, the
-provider rejected your API key (HTTP 401/403) and routing stays off until you restart. Fix the key
+provider rejected your API key (HTTP 401) and routing stays off until you restart. Fix the key
 in `~/.jev-router.env` (or the shell variable, if you exported it), then restart `jev` or
 `jev codex`. In interactive mode the log is `~/.jev-claude.log`; with `-p` it goes to stderr.
 

@@ -304,3 +304,28 @@ verifier·tester 보고: `src/explain.mjs`의 박스(`row`, `wrapped`)가 패딩
 1. `npm test` 전체 통과(195 + 신규).
 2. 인증 실패 후 재호출 없음·로그 1회·reason `jev-auth-failed`·explain 문구가 테스트로 고정. 비인증 실패 동작 불변.
 3. README 영/한 반영, 줄바꿈 회귀 없음, 버전 0.4.5 일치.
+
+---
+
+# 개정: 인증 실패 래치를 401로 한정 + 동시 실패 테스트 (0.4.6)
+
+0.4.5 verifier Minor 반영.
+
+1. **403은 래치하지 않는다.** OpenRouter는 입력이 모더레이션에 걸린 요청 하나에도 403을 줄 수 있고, TypeSafe의 403(PermissionDenied)도 요청 단위일 수 있다. 이 경우 세션 끝까지 "key rejected"로 잘못 표시된다. 키 자체가 무효임이 확실한 **401만** 래치한다. 403은 다른 실패처럼 `routing failed` 로그 + 다음 턴 재시도 + reason `jev-unavailable`.
+   - `src/router.mjs` 조건·주석·로그 문구, `src/codex-proxy.mjs` 안내 문구(`HTTP 401/403` → `HTTP 401`), README 영/한 section 5의 `HTTP 401/403` → `HTTP 401`, 관련 테스트 기대값을 맞춘다.
+2. **동시 401 테스트.** `Promise.all`로 `askJev` 두 번을 401 서버에 동시에 보내 "rejected the API key" 로그가 정확히 1줄, `jevAuthFailure()`가 `{status: 401}`인지 단언한다(`if (!authFailure)` 가드 고정).
+
+## 테스트
+
+- 401(OpenRouter·TypeSafe) 래치 테스트 유지. 403(두 제공자)은 래치되지 않고 다음 호출이 다시 나가며 `routing failed`가 로그되는지로 기존 403 래치 테스트를 바꾼다.
+- 동시 401 테스트 추가.
+
+## 부수
+
+- 버전 `0.4.6`. 줄바꿈 유지, 코드·테스트 한글 금지, 영어 주석.
+
+## 완료 기준
+
+1. `npm test` 전체 통과.
+2. 403 비래치·401 래치·동시 401 로그 1회가 테스트로 고정.
+3. README 영/한·Codex 문구에 403 언급이 사실과 맞음, 버전 0.4.6 일치, 줄바꿈 회귀 없음.

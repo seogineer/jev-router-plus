@@ -784,3 +784,40 @@ test("a rejected Jev key is filed as jev-auth-failed and explained", async (t) =
   assert.match(status.reason, /^jev-auth-failed/);
   assert.match(formatExplanation(status), /Decision: Jev key rejected; held/);
 });
+
+test("a failed Jev call with no auth failure reported (e.g. a 403) is filed as jev-unavailable", async (t) => {
+  const upstream = http.createServer((req, res) => {
+    req.on("data", () => {});
+    req.on("end", () => {
+      res.setHeader("content-type", "application/json");
+      if (req.url.startsWith("/v1/models")) return res.end('{"data":[{"id":"claude-sonnet-5-5"}]}');
+      res.end('{"id":"msg_1","type":"message"}');
+    });
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  t.after(() => upstream.close());
+
+  // A 403 is never latched, so the router reports no auth failure.
+  const { port, close } = await startProxy({
+    upstreamURL: `http://127.0.0.1:${upstream.address().port}`,
+    route: async () => null,
+    authFailure: () => null,
+  });
+  t.after(close);
+
+  const body = {
+    model: "jev-router",
+    tools: [{ name: "Bash" }],
+    messages: [{ role: "user", content: `rename this variable forbidden ${process.pid}` }],
+  };
+  await fetch(`http://127.0.0.1:${port}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const status = readStatus(conversationKey(body));
+  assert.match(status.reason, /^jev-unavailable/);
+  assert.doesNotMatch(status.reason, /jev-auth-failed/);
+  assert.match(formatExplanation(status), /Decision: Jev unavailable; held/);
+});

@@ -139,7 +139,7 @@ Codex에서 `$jev-explain`, 또는 `jev explain <session-id>`로 확인합니다
 `npm install -g jev-router-plus@latest --prefer-online`을 실행하세요.
 
 `/jev-explain`(Codex에서는 `$jev-explain`)에 `Decision: Jev key rejected; held`가 표시되면 제공자가
-API 키를 거부한 것(HTTP 401/403)이며, 재시작하기 전까지 라우팅은 꺼진 상태로 유지됩니다.
+API 키를 거부한 것(HTTP 401)이며, 재시작하기 전까지 라우팅은 꺼진 상태로 유지됩니다.
 `~/.jev-router.env`의 키(셸에서 export했다면 그 변수)를 고친 뒤 `jev` 또는 `jev codex`를
 재시작하세요. 대화형 모드에서는 로그가 `~/.jev-claude.log`에 남고, `-p`에서는 stderr로 출력됩니다.
 

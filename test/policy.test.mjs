@@ -103,7 +103,7 @@ test("jevError without a Jev outage and no jevError keep the old reasons", () =>
 });
 
 test("jev-auth-failed combines with the no-change and unavailable suffixes", () => {
-  const err = { status: 403 };
+  const err = { status: 401 };
   assert.equal(decide({ ...base, jev: null, jevError: err }).reason, "jev-auth-failed/no-change");
   // Current tier is not runnable: policy steps to a runnable tier and flags it.
   const moved = decide({ ...base, jev: null, jevError: err, available: ["haiku", "opus"] });

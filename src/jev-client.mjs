@@ -82,7 +82,7 @@ function openRouterClient({ apiKey, url, model, timeout, retry }) {
             throw lastError;
           }
           lastError = new Error(`OpenRouter Jev HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
-          // Lets the router tell a rejected key (401/403) from a transient failure.
+          // Lets the router tell a rejected key (401) from a transient failure.
           lastError.status = res.status;
           if (res.status !== 429 && res.status < 500) throw lastError;
         } catch (err) {

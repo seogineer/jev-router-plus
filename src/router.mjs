@@ -14,8 +14,9 @@ import { log } from "./log.mjs";
 // should degrade to "no routing", not stop the session from starting.
 let client;
 
-// Set once the provider rejects the key (HTTP 401/403). The key is read once at startup, so
-// every later call would fail the same way: stop calling and say so once.
+// Set once the provider rejects the key (HTTP 401). The key is read once at startup, so
+// every later call would fail the same way: stop calling and say so once. Only 401 latches: a 403
+// can be per-request (OpenRouter moderation, provider permission), so it is retried like any failure.
 let authFailure = null;
 
 /** `{ status }` once Jev rejected the API key in this process, otherwise null. */
@@ -73,7 +74,7 @@ export async function askJev({ prompt, current, contextTokens, models }) {
       ms: Date.now() - started,
     };
   } catch (err) {
-    if (err?.status === 401 || err?.status === 403) {
+    if (err?.status === 401) {
       if (!authFailure) {
         authFailure = { status: err.status };
         log(

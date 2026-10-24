@@ -289,7 +289,7 @@ test("a rejected key gets its own commentary, distinct from an outage", () => {
     confidence: null,
     reason: "jev-auth-failed/no-change",
   });
-  assert.match(events, /key rejected \(HTTP 401\/403\)/);
+  assert.match(events, /key rejected \(HTTP 401\)/);
   assert.match(events, /restart \\"jev codex\\"/);
   assert.match(events, /using gpt-5\.6-terra/);
   assert.doesNotMatch(events, /unavailable/);

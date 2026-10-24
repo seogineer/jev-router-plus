@@ -144,7 +144,7 @@ export function jevDecisionEvents({ tier, model = codexModelOf(tier), confidence
   const detail = confidence == null ? reason : `${reason}, confidence ${confidence.toFixed(2)}`;
   const id = `jev-${randomUUID()}`;
   const text = reason.startsWith("jev-auth-failed")
-    ? `[Jev] key rejected (HTTP 401/403); using ${model}. Fix the key in ~/.jev-router.env and restart "jev codex".`
+    ? `[Jev] key rejected (HTTP 401); using ${model}. Fix the key in ~/.jev-router.env and restart "jev codex".`
     : reason.startsWith("jev-unavailable")
     ? `[Jev] unavailable; using ${model}. Add JEV_API_KEY=... or OPENROUTER_API_KEY=... to ~/.jev-router.env and restart "jev codex".`
     : `[Jev] routed this turn to ${model} (${detail}).`;
