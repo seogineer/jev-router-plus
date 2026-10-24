@@ -166,3 +166,16 @@ test("decomposed (NFD) Hangul renders exactly like composed (NFC) Hangul", () =>
   assert.equal(make(decomposed), make(composed));
   assertAligned(make(decomposed));
 });
+
+test("a rejected key is explained apart from an outage", () => {
+  assert.match(formatExplanation({ tier: "sonnet", reason: "jev-auth-failed/no-change" }), /Decision: Jev key rejected; held/);
+  assert.match(formatExplanation({ tier: "sonnet", reason: "jev-unavailable/no-change" }), /Decision: Jev unavailable; held/);
+});
+
+test("the rejected-key decision keeps every box line the same width", () => {
+  for (const reason of ["jev-auth-failed/no-change", "jev-auth-failed+unavailable"]) {
+    const output = formatExplanation({ ...base, reason });
+    assertAligned(output);
+    assert.match(output, /Decision: Jev key rejected; held/);
+  }
+});

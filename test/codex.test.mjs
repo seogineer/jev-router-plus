@@ -18,6 +18,7 @@ import {
 } from "../src/codex-proxy.mjs";
 import { codexArgs, installCodexSkill, renderCodexSkill } from "../src/codex-cli.mjs";
 import { readStatus } from "../src/status.mjs";
+import { formatExplanation } from "../src/explain.mjs";
 
 test("Codex uses a temporary authenticated Jev provider", () => {
   const args = codexArgs("http://127.0.0.1:1234", ["--sandbox", "read-only"]);
@@ -280,4 +281,62 @@ test("proxy preserves Codex auth, picker, routing, and native decision output", 
   assert.equal(routeCalls, 1);
   assert.equal(seen[3].body.model, "gpt-5.6-sol");
   assert.equal(readStatus(statusId).metrics.reasoningRequired, 0.91);
+});
+
+test("a rejected key gets its own commentary, distinct from an outage", () => {
+  const events = jevDecisionEvents({
+    tier: "sonnet",
+    confidence: null,
+    reason: "jev-auth-failed/no-change",
+  });
+  assert.match(events, /key rejected \(HTTP 401\/403\)/);
+  assert.match(events, /restart \\"jev codex\\"/);
+  assert.match(events, /using gpt-5\.6-terra/);
+  assert.doesNotMatch(events, /unavailable/);
+});
+
+test("proxy files jev-auth-failed when route returns null and the key was rejected", async (t) => {
+  const upstream = http.createServer((req, res) => {
+    req.on("data", () => {});
+    req.on("end", () => {
+      if (req.url.startsWith("/backend-api/codex/models")) {
+        res.setHeader("content-type", "application/json");
+        return res.end(JSON.stringify({
+          models: [{ slug: "gpt-5.6-terra", display_name: "GPT-5.6-Terra", visibility: "list", supported_in_api: true, priority: 2 }],
+        }));
+      }
+      res.end('event: response.completed\ndata: {"type":"response.completed","response":{"id":"r1"}}\n\n');
+    });
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  t.after(() => upstream.close());
+  const upstreamURL = `http://127.0.0.1:${upstream.address().port}`;
+  const statusId = `codex-auth-${process.pid}`;
+  const { port, close } = await startCodexProxy({
+    chatgptBaseURL: `${upstreamURL}/backend-api/codex`,
+    apiBaseURL: `${upstreamURL}/v1`,
+    route: async () => null,
+    authFailure: () => ({ status: 401 }),
+    statusId,
+  });
+  t.after(close);
+  const headers = { authorization: "Bearer subscription-token", "chatgpt-account-id": "acct" };
+  await fetch(`http://127.0.0.1:${port}/models?client_version=1`, { headers }).then((r) => r.json());
+  const response = await fetch(`http://127.0.0.1:${port}/responses`, {
+    method: "POST",
+    headers: { ...headers, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "jev-router",
+      prompt_cache_key: "auth",
+      input: [
+        { type: "additional_tools", role: "developer", tools: [{}] },
+        { role: "user", content: [{ type: "input_text", text: "debug this race" }] },
+      ],
+    }),
+  }).then((r) => r.text());
+
+  const status = readStatus(statusId);
+  assert.match(status.reason, /^jev-auth-failed/);
+  assert.match(response, /key rejected/);
+  assert.match(formatExplanation(status), /Decision: Jev key rejected; held/);
 });

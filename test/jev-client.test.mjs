@@ -161,3 +161,15 @@ test("OpenRouter client stops when the caller aborts", async () => {
   await server.close();
   assert.equal(server.requests.length, 0);
 });
+
+test("OpenRouter HTTP errors carry a numeric status and keep the message format", async (t) => {
+  const server = await fakeOpenRouter([{ status: 401, json: { error: "User not found" } }]);
+  t.after(server.close);
+  const client = createJevClient({ timeout: 1000, retry: RETRY, env: openRouterEnv(server.url) });
+
+  await assert.rejects(client.systemOne({}), (err) => {
+    assert.equal(err.status, 401);
+    assert.match(err.message, /^OpenRouter Jev HTTP 401: /);
+    return true;
+  });
+});

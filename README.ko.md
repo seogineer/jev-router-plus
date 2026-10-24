@@ -135,6 +135,14 @@ Codex에서 `$jev-explain`, 또는 `jev explain <session-id>`로 확인합니다
 (Windows에서는 `%USERPROFILE%\.agents\skills\jev-router-explain`). `npm update`를 하면 다음에 `jev codex`를
 실행할 때 스킬이 갱신됩니다.
 
+방금 배포된 릴리스가 `npm install`이나 `npm update`로 설치되지 않으면 npm 캐시가 오래된 것입니다.
+`npm install -g jev-router-plus@latest --prefer-online`을 실행하세요.
+
+`/jev-explain`(Codex에서는 `$jev-explain`)에 `Decision: Jev key rejected; held`가 표시되면 제공자가
+API 키를 거부한 것(HTTP 401/403)이며, 재시작하기 전까지 라우팅은 꺼진 상태로 유지됩니다.
+`~/.jev-router.env`의 키(셸에서 export했다면 그 변수)를 고친 뒤 `jev` 또는 `jev codex`를
+재시작하세요. 대화형 모드에서는 로그가 `~/.jev-claude.log`에 남고, `-p`에서는 stderr로 출력됩니다.
+
 ## Claude Code 인터페이스
 
 ![Jev Router in the Claude Code model picker](docs/model-picker.png)

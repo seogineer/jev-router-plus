@@ -32,9 +32,10 @@ function clampToAvailable(tier, available) {
  * @param {string} input.current       tier currently active in the session
  * @param {string[]} input.available   tier names the account can run
  * @param {number} input.contextTokens approximate size of the conversation so far
+ * @param {?{status: number}} input.jevError  set when Jev rejected the API key (HTTP 401/403)
  * @returns {{tier: string, reason: string, changed: boolean}}
  */
-export function decide({ prompt, jev, current, available, contextTokens = 0 }) {
+export function decide({ prompt, jev, current, available, contextTokens = 0, jevError = null }) {
   const settle = (tier, reason) => {
     const final = clampToAvailable(tier, available) ?? current;
     const why = final === tier ? reason : `${reason}+unavailable`;
@@ -44,7 +45,9 @@ export function decide({ prompt, jev, current, available, contextTokens = 0 }) {
   const override = detectOverride(prompt);
   if (override) return settle(override, "override");
 
-  if (!jev || !TIER_NAMES.includes(jev.choice)) return settle(current, "jev-unavailable");
+  if (!jev || !TIER_NAMES.includes(jev.choice)) {
+    return settle(current, !jev && jevError ? "jev-auth-failed" : "jev-unavailable");
+  }
 
   let target = jev.choice;
 

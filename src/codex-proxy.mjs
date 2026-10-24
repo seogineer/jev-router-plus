@@ -3,7 +3,7 @@ import https from "node:https";
 import { createHash, randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { availableTiers, shouldUseExactModel } from "./config.mjs";
-import { askJev } from "./router.mjs";
+import { askJev, jevAuthFailure } from "./router.mjs";
 import { decide } from "./policy.mjs";
 import { log } from "./log.mjs";
 import { writeDecision, writeStatus } from "./status.mjs";
@@ -143,7 +143,9 @@ export const upstreamFor = (
 export function jevDecisionEvents({ tier, model = codexModelOf(tier), confidence, reason }) {
   const detail = confidence == null ? reason : `${reason}, confidence ${confidence.toFixed(2)}`;
   const id = `jev-${randomUUID()}`;
-  const text = reason.startsWith("jev-unavailable")
+  const text = reason.startsWith("jev-auth-failed")
+    ? `[Jev] key rejected (HTTP 401/403); using ${model}. Fix the key in ~/.jev-router.env and restart "jev codex".`
+    : reason.startsWith("jev-unavailable")
     ? `[Jev] unavailable; using ${model}. Add JEV_API_KEY=... or OPENROUTER_API_KEY=... to ~/.jev-router.env and restart "jev codex".`
     : `[Jev] routed this turn to ${model} (${detail}).`;
   const item = {
@@ -168,6 +170,7 @@ export async function startCodexProxy({
   chatgptBaseURL = CHATGPT_BASE_URL,
   apiBaseURL = API_BASE_URL,
   route = askJev,
+  authFailure = jevAuthFailure,
   statusId = "",
 } = {}) {
   const states = new Map();
@@ -204,6 +207,7 @@ export async function startCodexProxy({
               const decision = decide({
                 prompt,
                 jev: jev && { ...jev, choice: chosen?.tier },
+                jevError: jev ? null : authFailure(),
                 current,
                 available,
                 contextTokens,

@@ -88,3 +88,29 @@ test("accepts exact model changes within the same tier", () => {
   assert.equal(shouldUseExactModel("jev/no-change", "opus", "opus"), true);
   assert.equal(shouldUseExactModel("low-confidence-no-downgrade/no-change", "opus", "opus"), false);
 });
+
+test("a rejected Jev key is reported as jev-auth-failed", () => {
+  const out = decide({ ...base, jev: null, jevError: { status: 401 } });
+  assert.equal(out.tier, "sonnet");
+  assert.equal(out.changed, false);
+  assert.equal(out.reason, "jev-auth-failed/no-change");
+});
+
+test("jevError without a Jev outage and no jevError keep the old reasons", () => {
+  assert.equal(decide({ ...base, jev: null }).reason, "jev-unavailable/no-change");
+  assert.equal(decide({ ...base, jev: null, jevError: null }).reason, "jev-unavailable/no-change");
+  assert.equal(decide({ ...base, jev: sure("opus"), jevError: { status: 401 } }).reason, "jev");
+});
+
+test("jev-auth-failed combines with the no-change and unavailable suffixes", () => {
+  const err = { status: 403 };
+  assert.equal(decide({ ...base, jev: null, jevError: err }).reason, "jev-auth-failed/no-change");
+  // Current tier is not runnable: policy steps to a runnable tier and flags it.
+  const moved = decide({ ...base, jev: null, jevError: err, available: ["haiku", "opus"] });
+  assert.equal(moved.reason, "jev-auth-failed+unavailable");
+  assert.equal(moved.changed, true);
+  // A prompt override still wins over the auth failure.
+  assert.equal(decide({ ...base, prompt: "use opus for this", jev: null, jevError: err }).reason.startsWith("override"), true);
+  // A malformed answer is an outage, not an auth failure, even with jevError set.
+  assert.equal(decide({ ...base, jev: { choice: "bogus", confidence: 1 }, jevError: err }).reason, "jev-unavailable/no-change");
+});

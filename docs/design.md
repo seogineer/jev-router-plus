@@ -259,3 +259,48 @@ verifier·tester 보고: `src/explain.mjs`의 박스(`row`, `wrapped`)가 패딩
 1. `npm test` 전체 통과(188 + 신규).
 2. 보조 요청이 route 미호출·상태 미변경·직전 모델 재사용임이 테스트로 고정.
 3. 줄바꿈 회귀 없음, 버전 0.4.4 일치.
+
+---
+
+# 개정: Jev 키 인증 실패를 바로 알리기 + 테스트·README 보강 (0.4.5)
+
+관찰: OpenRouter 키가 401 `User not found`로 거부돼도 (1) 턴마다 Jev를 다시 호출하고 `~/.jev-claude.log`에 같은 줄이 계속 쌓였으며, (2) `/jev-explain`에는 일시 장애와 구분되지 않는 `Jev unavailable; held`만 보여 원인을 찾으려면 로그 파일을 열어야 했다. 키는 프로세스 시작 시 한 번 읽히므로, 인증 실패는 재시작 전까지 계속 실패한다.
+
+## 구현
+
+1. **인증 실패 판별** (`src/router.mjs`, `src/jev-client.mjs`)
+   - OpenRouter 클라이언트가 던지는 HTTP 오류에 `status` 숫자 속성을 붙인다(메시지 형식은 유지).
+   - `askJev`의 catch에서 `err.status`가 401 또는 403이면 인증 실패로 본다(TypeSafe SDK의 `APIError`도 `status`를 가짐). 키 누락(`createJevClient`가 던지는 "no JEV_API_KEY..." 오류)은 지금처럼 일반 실패로 둔다.
+   - 인증 실패가 한 번 나면 모듈 상태에 `{ status }`를 기록하고, 이후 `askJev`는 네트워크 호출 없이 즉시 `null`을 반환한다(프로세스 수명 동안).
+   - 로그는 인증 실패 시 **한 번만** 남긴다. 예: `Jev rejected the API key (HTTP 401); routing is off until you fix JEV_API_KEY/OPENROUTER_API_KEY in ~/.jev-router.env and restart jev.` 키 값은 절대 로그에 넣지 않는다. 다른 실패(타임아웃·5xx 등)의 로그·재시도 동작은 그대로.
+   - 조회용 `jevAuthFailure()`를 export한다(없으면 null). 테스트용 초기화 수단이 필요하면 `resetJevAuthFailure()`처럼 명시적으로 export.
+2. **결정 이유** (`src/policy.mjs`, `src/proxy.mjs`, `src/codex-proxy.mjs`)
+   - `decide`에 선택 인자(예: `jevError`)를 추가해 `jev`가 없고 인증 실패면 reason 접두어를 `jev-auth-failed`로 한다(`/no-change` 등 기존 접미 규칙 동일). 그 외는 기존 `jev-unavailable`.
+   - 두 프록시는 route 결과가 null일 때 인증 실패 여부를 decide에 넘긴다. 테스트에서 주입할 수 있게 `startProxy`/Codex 프록시 옵션으로 조회 함수를 받되 기본값은 `jevAuthFailure`.
+   - Codex 안내 이벤트(`jevDecisionEvents`)에서 `jev-auth-failed`이면 "키가 거부됨(HTTP 401/403), 키를 고치고 재시작" 취지의 문구를 낸다. `jev-unavailable` 문구는 그대로.
+3. **표시** (`src/explain.mjs`, 상태 줄이 reason을 쓰면 그곳도)
+   - `decision()`에 `jev-auth-failed` → `Jev key rejected; held` 를 `jev-unavailable`보다 먼저 매핑.
+
+## 테스트
+
+- router: 401/403(`status` 속성) 첫 실패 후 두 번째 호출은 클라이언트를 부르지 않고 null, 로그 1회, 500·타임아웃은 래치되지 않음. OpenRouter 클라이언트 오류에 `status`가 붙음.
+- policy: `jevError` 인증 실패 → `jev-auth-failed/no-change`, 없으면 기존 문자열 그대로.
+- proxy·codex-proxy: route null + 인증 실패 주입 → 상태 파일 reason `jev-auth-failed...`; explain 출력 `Decision: Jev key rejected; held`.
+- (verifier Minor 반영) `test/proxy.test.mjs` 보조 요청 테스트: 직전 턴이 `idOf(tier)`와 **다른** 정확한 모델 id를 고르게 하고(stub 카탈로그/route), 보조 요청이 그 id를 그대로 받는지 `seen[0].model`을 명시적으로 단언.
+
+## README (영/한 동일 구조, 패리티 테스트 통과)
+
+- "5. Verify, update, and uninstall"에 짧게 추가:
+  - 방금 배포된 버전이 설치되지 않으면(npm 캐시) `npm install -g jev-router-plus@latest --prefer-online`.
+  - `/jev-explain`에 `Decision: Jev key rejected; held`가 나오면 키가 거부된 것: `~/.jev-router.env`의 키를 고치고 `jev`를 재시작(로그 `~/.jev-claude.log`).
+- 다른 섹션에 결정 이유 목록이 있으면 `jev-auth-failed`를 같은 형식으로 추가.
+
+## 부수
+
+- 버전 `0.4.5`(package.json, package-lock.json 최상위·packages[""]). 기존 줄바꿈 형식 유지, 코드·테스트 한글 금지, 영어 주석.
+
+## 완료 기준
+
+1. `npm test` 전체 통과(195 + 신규).
+2. 인증 실패 후 재호출 없음·로그 1회·reason `jev-auth-failed`·explain 문구가 테스트로 고정. 비인증 실패 동작 불변.
+3. README 영/한 반영, 줄바꿈 회귀 없음, 버전 0.4.5 일치.

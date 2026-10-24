@@ -11,6 +11,7 @@ import {
   sessionOf,
   startProxy,
 } from "../src/proxy.mjs";
+import { formatExplanation } from "../src/explain.mjs";
 
 test("only the sentinel model is routed", () => {
   assert.equal(isAuto("jev-router"), true);
@@ -22,7 +23,7 @@ test("only the sentinel model is routed", () => {
 test("the sentinel is not mistaken for a real tier", () => {
   assert.equal(tierOf("jev-router"), null);
 });
-import { tierOf, isAuto } from "../src/config.mjs";
+import { tierOf, isAuto, idOf } from "../src/config.mjs";
 import { writeDecision, writeStatus, readStatus, pruneStale, writePrivate, STATUS_DIR } from "../src/status.mjs";
 import { mkdirSync, statSync, utimesSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -585,12 +586,13 @@ for (const aux of [
             data: [
               { id: "claude-opus-5-5", display_name: "Claude Opus 5" },
               { id: "claude-sonnet-5-5", display_name: "Claude Sonnet 5" },
+              { id: "claude-sonnet-5-6", display_name: "Claude Sonnet 5.6" },
             ],
           }));
         }
         seen.push(JSON.parse(Buffer.concat(chunks)));
         res.setHeader("content-type", "application/json");
-        res.end('{"id":"msg_1","type":"message","model":"claude-sonnet-5-5"}');
+        res.end('{"id":"msg_1","type":"message","model":"claude-sonnet-5-6"}');
       });
     });
     await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
@@ -601,7 +603,8 @@ for (const aux of [
       upstreamURL: `http://127.0.0.1:${upstream.address().port}`,
       route: async () => {
         routed++;
-        return { choice: routed === 1 ? "claude-sonnet-5-5" : "claude-opus-5-5", confidence: 0.9, ms: 1 };
+        // An exact id that is not idOf("sonnet"), so a fallback to the tier id would be visible.
+        return { choice: routed === 1 ? "claude-sonnet-5-6" : "claude-opus-5-5", confidence: 0.9, ms: 1 };
       },
     });
     t.after(close);
@@ -628,6 +631,8 @@ for (const aux of [
     assert.equal(routed, 1, "an auxiliary request is not routed");
     assert.deepEqual(readStatus(key), before, "the status file is untouched");
     assert.equal(seen.length, 2);
+    assert.notEqual(seen[0].model, idOf("sonnet"));
+    assert.equal(seen[0].model, "claude-sonnet-5-6", "the routed turn used Jev's exact model id");
     assert.equal(seen[1].model, seen[0].model, "upstream gets the model of the previous turn");
   });
 }
@@ -743,4 +748,39 @@ test("the status prompt stays the real user's prompt after an auxiliary request"
   assert.equal(prompts.length, 1);
   assert.equal(readStatus(key).prompt, first, "/jev-explain reads the real prompt");
   assert.equal(readStatus(key).history.length, 1, "no auxiliary entry in the history");
+});
+
+test("a rejected Jev key is filed as jev-auth-failed and explained", async (t) => {
+  const upstream = http.createServer((req, res) => {
+    req.on("data", () => {});
+    req.on("end", () => {
+      res.setHeader("content-type", "application/json");
+      if (req.url.startsWith("/v1/models")) return res.end('{"data":[{"id":"claude-sonnet-5-5"}]}');
+      res.end('{"id":"msg_1","type":"message"}');
+    });
+  });
+  await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+  t.after(() => upstream.close());
+
+  const { port, close } = await startProxy({
+    upstreamURL: `http://127.0.0.1:${upstream.address().port}`,
+    route: async () => null,
+    authFailure: () => ({ status: 401 }),
+  });
+  t.after(close);
+
+  const body = {
+    model: "jev-router",
+    tools: [{ name: "Bash" }],
+    messages: [{ role: "user", content: `rename this variable auth ${process.pid}` }],
+  };
+  await fetch(`http://127.0.0.1:${port}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const status = readStatus(conversationKey(body));
+  assert.match(status.reason, /^jev-auth-failed/);
+  assert.match(formatExplanation(status), /Decision: Jev key rejected; held/);
 });

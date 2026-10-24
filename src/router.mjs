@@ -13,6 +13,22 @@ import { log } from "./log.mjs";
 // Built lazily because the constructor throws when no key is present, and a missing key
 // should degrade to "no routing", not stop the session from starting.
 let client;
+
+// Set once the provider rejects the key (HTTP 401/403). The key is read once at startup, so
+// every later call would fail the same way: stop calling and say so once.
+let authFailure = null;
+
+/** `{ status }` once Jev rejected the API key in this process, otherwise null. */
+export function jevAuthFailure() {
+  return authFailure;
+}
+
+/** Clears the auth-failure latch and the cached client (tests only). */
+export function resetJevAuthFailure() {
+  authFailure = null;
+  client = undefined;
+}
+
 function getClient() {
   client ??= createJevClient({
     timeout: THRESHOLDS.jevTimeoutMs,
@@ -29,6 +45,7 @@ function getClient() {
  */
 export async function askJev({ prompt, current, contextTokens, models }) {
   if (!models?.length) return null;
+  if (authFailure) return null;
   const started = Date.now();
   const abort = new AbortController();
   const deadline = setTimeout(() => abort.abort(), THRESHOLDS.jevDeadlineMs);
@@ -56,6 +73,15 @@ export async function askJev({ prompt, current, contextTokens, models }) {
       ms: Date.now() - started,
     };
   } catch (err) {
+    if (err?.status === 401 || err?.status === 403) {
+      if (!authFailure) {
+        authFailure = { status: err.status };
+        log(
+          `Jev rejected the API key (HTTP ${err.status}); routing is off until you fix JEV_API_KEY/OPENROUTER_API_KEY in ~/.jev-router.env and restart jev.`,
+        );
+      }
+      return null;
+    }
     log(`routing failed, keeping ${current}: ${err.message}`);
     return null;
   } finally {

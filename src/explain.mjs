@@ -27,6 +27,7 @@ const wrapped = (label, value) => {
 
 const decision = (reason = "") => {
   if (reason.includes("override")) return "prompt override";
+  if (reason.includes("jev-auth-failed")) return "Jev key rejected; held";
   if (reason.includes("jev-unavailable")) return "Jev unavailable; held";
   if (reason.includes("low-confidence-no-downgrade")) return "low confidence; held";
   if (reason.includes("low-confidence-capped")) return "low confidence; capped";
